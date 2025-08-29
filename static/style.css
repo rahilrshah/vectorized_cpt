@@ -1,0 +1,7 @@
+body { font-family: sans-serif; margin: 2em; }
+main { max-width: 900px; margin: auto; }
+.upload-section { margin-bottom: 1em; }
+.results-container { display: flex; gap: 2em; }
+.column { flex: 1; }
+pre { white-space: pre-wrap; background-color: #f4f4f4; padding: 1em; border-radius: 5px; }
+#status-message { font-style: italic; color: #555; }
