@@ -67,3 +67,6 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# Google Cloud service account credentials
+*-firebase-adminsdk-*.json
