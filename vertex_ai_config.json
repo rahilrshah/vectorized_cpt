@@ -1,0 +1,14 @@
+{
+  "project_id": "cpt-code-vectorized-dataset",
+  "location": "us-central1",
+  "bucket_name": "cpt-code-vectorized-dataset-vector-search",
+  "index_name": "cpt-vector-search-index",
+  "endpoint_name": "cpt-vector-search-endpoint",
+  "dimensions": 768,
+  "distance_measure": "COSINE_DISTANCE",
+  "machine_type": "e2-standard-2",
+  "index_resource_name": "projects/65650340228/locations/us-central1/indexes/5553556266082631680",
+  "index_id": "5553556266082631680",
+  "endpoint_resource_name": "projects/65650340228/locations/us-central1/indexEndpoints/2122622590584356864",
+  "endpoint_id": "2122622590584356864"
+}

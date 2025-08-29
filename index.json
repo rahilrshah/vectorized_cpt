@@ -1,0 +1,9 @@
+[
+  {
+    "field-path": "description_vector",
+    "vector-config": {
+      "dimension": 768,
+      "flat": {}
+    }
+  }
+]
