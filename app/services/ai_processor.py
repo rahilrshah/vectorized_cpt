@@ -60,18 +60,47 @@ class AIProcessorService:
             raise Exception(f"Failed to summarize text with the LLM: {str(e)}")
     
     def _create_medical_extraction_prompt(self, medical_text: str) -> str:
-        """Create the exact prompt used in Firebase function"""
-        return f"""You are an expert medical coding assistant. Analyze the
-following medical note and extract a concise summary of the primary
-procedures performed and the final postoperative diagnosis. Your
-summary should be optimized for a semantic search to find a billing
-code. Do not include patient history, component names, or surgical
-narrative. Focus only on the performed actions and final diagnoses.
+        """Enhanced medical extraction prompt with structured analysis"""
+        return f"""You are an expert medical coding specialist with deep knowledge of CPT codes, anesthesia codes, and billing modifiers. Analyze the following medical note and extract comprehensive medical coding information.
+
+ANALYSIS REQUIREMENTS:
+1. ANATOMICAL PRECISION: Identify exact anatomical locations, sides (right/left/bilateral)
+2. PROCEDURE CLASSIFICATION: Categorize by complexity, approach, and specialty
+3. BILLING COMPONENTS: Identify all billable elements including anesthesia needs
+4. MODIFIER REQUIREMENTS: Determine anatomical and procedural modifiers needed
+
+Extract and provide:
+
+PRIMARY PROCEDURES:
+- Exact procedure names with anatomical specificity
+- Surgical approach (open, arthroscopic, minimally invasive)
+- Complexity level (minor, major, complex)
+
+ANATOMICAL DETAILS:
+- Specific body region and laterality (right/left/bilateral)
+- Multiple locations if applicable
+- Anatomical relationships
+
+ANESTHESIA INFORMATION:
+- Type required (local, regional, general, MAC)
+- Estimated complexity and duration
+- Special anesthesia considerations
+
+MODIFIERS NEEDED:
+- Anatomical modifiers (RT, LT, 50 for bilateral)
+- Procedural modifiers (complexity, approach)
+- Multiple procedure indicators
+
+RELATED DIAGNOSES:
+- Primary diagnosis requiring procedure
+- Secondary relevant conditions
+- Anatomical specificity of diagnoses
 
 Medical Note:
 "{medical_text}"
 
-Summary:"""
+STRUCTURED MEDICAL CODING SUMMARY:
+Provide a comprehensive summary optimized for CPT code matching that includes all billable components, anatomical precision, and modifier requirements. Focus on terminology that will match CPT code descriptions exactly."""
     
     async def _call_gemini_api(self, prompt: str) -> str:
         """

@@ -74,8 +74,8 @@ class CPTSearchService:
                 # Calculate match score based on keyword overlap
                 match_score = self._calculate_match_score(query_terms, description)
                 
-                # Calculate similarity and apply 70% threshold
-                calculated_similarity = min(0.95, match_score * 0.3)
+                # Enhanced medical similarity calculation
+                calculated_similarity = self._calculate_medical_similarity(query_terms, description, match_score)
                 if calculated_similarity >= self.similarity_threshold:
                     result = {
                         "cpt_code": cpt_code,
@@ -142,6 +142,87 @@ class CPTSearchService:
             if term in description:
                 match_score += 1
         return match_score
+    
+    def _calculate_medical_similarity(self, query_terms: List[str], description: str, match_score: int) -> float:
+        """
+        Enhanced relevance scoring with anatomical precision and medical context
+        Target: 90%+ accuracy for primary CPT codes with proper medical weighting
+        """
+        if match_score == 0:
+            return 0
+        
+        lower_desc = description.lower()
+        lower_query = ' '.join(query_terms).lower()
+        
+        # Enhanced anatomical keywords with precision weighting
+        anatomical_keywords = {
+            # Skeletal/Orthopedic (high precision)
+            'knee': 0.8, 'hip': 0.8, 'shoulder': 0.8, 'ankle': 0.8, 'elbow': 0.8,
+            'spine': 0.8, 'vertebra': 0.8, 'femur': 0.8, 'tibia': 0.8, 'fibula': 0.8,
+            'patella': 0.8, 'meniscus': 0.8, 'cartilage': 0.7, 'ligament': 0.7,
+            
+            # Procedure specificity (very high precision)
+            'arthroplasty': 0.9, 'arthroscopy': 0.9, 'replacement': 0.85, 'revision': 0.85,
+            'total': 0.8, 'partial': 0.8, 'osteotomy': 0.85, 'fusion': 0.85,
+            'repair': 0.7, 'reconstruction': 0.8, 'resection': 0.8,
+            
+            # Laterality (critical for billing)
+            'right': 0.9, 'left': 0.9, 'bilateral': 0.95, 'unilateral': 0.8,
+            
+            # Surgical approaches
+            'open': 0.7, 'arthroscopic': 0.8, 'endoscopic': 0.8, 'percutaneous': 0.8,
+            'minimally': 0.7, 'invasive': 0.7,
+            
+            # General medical terms (lower weight)
+            'surgery': 0.5, 'surgical': 0.5, 'procedure': 0.5, 'operation': 0.5
+        }
+        
+        # Calculate anatomical precision score (0-1)
+        anatomical_score = 0
+        anatomical_terms_found = 0
+        
+        for keyword, weight in anatomical_keywords.items():
+            if keyword in lower_query and keyword in lower_desc:
+                anatomical_score += weight
+                anatomical_terms_found += 1
+        
+        # Normalize anatomical score
+        if anatomical_terms_found > 0:
+            anatomical_score = anatomical_score / anatomical_terms_found
+        
+        # Calculate exact terminology matches (boost for perfect medical term alignment)
+        exact_matches = len([term for term in query_terms if term in lower_desc and len(term) > 4])
+        exact_match_ratio = exact_matches / max(1, len(query_terms))
+        
+        # Enhanced similarity calculation with medical intelligence
+        similarity = 0
+        
+        # Base similarity (40% weight) - fundamental term matching
+        base_similarity = (match_score / len(query_terms)) * 0.4
+        similarity += base_similarity
+        
+        # Anatomical precision boost (40% weight) - critical for medical accuracy
+        anatomical_boost = anatomical_score * 0.4
+        similarity += anatomical_boost
+        
+        # Exact terminology boost (25% weight) - reward precise medical language
+        terminology_boost = exact_match_ratio * 0.25
+        similarity += terminology_boost
+        
+        # Medical context bonus for high-quality matches
+        if anatomical_score > 0.7 and exact_match_ratio > 0.5:
+            similarity += 0.1  # Significant bonus for excellent medical matches
+        
+        # Penalty for poor medical context (prevent irrelevant matches)
+        if anatomical_score < 0.3 and match_score < len(query_terms) * 0.5:
+            similarity *= 0.6  # Strong penalty for poor medical relevance
+        
+        # Reward comprehensive medical matches
+        if anatomical_score > 0.8 and exact_match_ratio > 0.6:
+            similarity *= 1.15  # Boost for exceptional medical precision
+        
+        # Cap at realistic maximum (98% to leave room for perfect matches)
+        return min(0.98, max(0, similarity))
     
     async def search_with_keywords(self, keywords: List[str], limit: int = 20) -> List[Dict]:
         """

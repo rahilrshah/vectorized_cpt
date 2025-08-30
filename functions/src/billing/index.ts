@@ -7,6 +7,7 @@ import { BillingConfig } from './config';
 import { CPTSearchService } from './services/cpt-search';
 import { AIProcessorService } from './services/ai-processor';
 import { FirestoreService } from './services/firestore-service';
+import { MedicalCodingService } from './services/medical-coding';
 
 export interface ProcessingResponse {
   step1_extractedText: string;
@@ -24,6 +25,7 @@ export class Billing {
   private cptSearch: CPTSearchService;
   private aiProcessor: AIProcessorService;
   private firestoreService: FirestoreService;
+  private medicalCoding: MedicalCodingService;
 
   constructor() {
     console.log("🏥 Initializing Medical Billing System (TypeScript)...");
@@ -35,6 +37,7 @@ export class Billing {
     this.cptSearch = new CPTSearchService(this);
     this.aiProcessor = new AIProcessorService(this);
     this.firestoreService = new FirestoreService(this);
+    this.medicalCoding = new MedicalCodingService(this);
     
     console.log("✅ Billing System Ready (TypeScript)");
   }
@@ -85,13 +88,20 @@ export class Billing {
 
       // Step 4: Search CPT codes
       console.log("🔍 Step 4: Searching CPT codes...");
-      const results = await this.cptSearch.searchWithVector(embedding, procedures);
+      const primaryResults = await this.cptSearch.searchWithVector(embedding, procedures);
       
-      // Apply max_results limit
-      const limitedResults = results.slice(0, maxResults);
+      // Apply max_results limit to primary results
+      const limitedResults = primaryResults.slice(0, maxResults);
       
-      pipelineResponse.step4_cptResults = limitedResults;
-      pipelineResponse.results = limitedResults;
+      // Step 5: Comprehensive multi-code detection (NEW ENHANCEMENT)
+      console.log("🏥 Step 5: Multi-code detection...");
+      const comprehensiveCodes = this.medicalCoding.detectComprehensiveCodes(
+        limitedResults, procedures, text
+      );
+      
+      pipelineResponse.step4_cptResults = limitedResults;  // Maintain backward compatibility
+      pipelineResponse.results = limitedResults;           // Legacy format
+      (pipelineResponse as any).comprehensive_codes = comprehensiveCodes;  // NEW: Enhanced results
 
       // Add processing time
       const processingTime = Date.now() - startTime;

@@ -553,29 +553,38 @@
             console.log('Step 4 displayed:', results.length, 'CPT results');
         }
 
-        // Display CPT code results
+        // Display CPT code results with enhanced multi-code information
         function displayCptResults(results, data) {
             if (results.length > 0) {
-                resultsCount.textContent = `✅ Found ${results.length} matching CPT codes`;
-                resultsContainer.innerHTML = '';
+                // Check if comprehensive codes are available (NEW ENHANCEMENT)
+                const comprehensiveCodes = data.comprehensive_codes;
                 
-                results.forEach((result, index) => {
-                    const resultCard = document.createElement('div');
-                    resultCard.className = 'result-card';
+                if (comprehensiveCodes) {
+                    // Display enhanced multi-code results
+                    displayComprehensiveResults(comprehensiveCodes, data);
+                } else {
+                    // Display traditional results
+                    resultsCount.textContent = `✅ Found ${results.length} matching CPT codes`;
+                    resultsContainer.innerHTML = '';
                     
-                    const similarity = result.similarity || (1 - (result.distance || 0));
-                    
-                    resultCard.innerHTML = `
-                        <div class="result-header">
-                            <div class="cpt-code">CPT ${result.cpt_code || result['CPT Codes'] || 'N/A'}</div>
-                            <div class="similarity-score">${(similarity * 100).toFixed(1)}% Match</div>
-                        </div>
-                        <div class="result-description">${result.description || result['Descriptions'] || 'No description available'}</div>
-                        ${result.category || result['Procedure Code Category'] ? `<div class="result-category">Category: ${result.category || result['Procedure Code Category']}</div>` : ''}
-                    `;
-                    
-                    resultsContainer.appendChild(resultCard);
-                });
+                    results.forEach((result, index) => {
+                        const resultCard = document.createElement('div');
+                        resultCard.className = 'result-card';
+                        
+                        const similarity = result.similarity || (1 - (result.distance || 0));
+                        
+                        resultCard.innerHTML = `
+                            <div class="result-header">
+                                <div class="cpt-code">CPT ${result.cpt_code || result['CPT Codes'] || 'N/A'}</div>
+                                <div class="similarity-score">${(similarity * 100).toFixed(1)}% Match</div>
+                            </div>
+                            <div class="result-description">${result.description || result['Descriptions'] || 'No description available'}</div>
+                            ${result.category || result['Procedure Code Category'] ? `<div class="result-category">Category: ${result.category || result['Procedure Code Category']}</div>` : ''}
+                        `;
+                        
+                        resultsContainer.appendChild(resultCard);
+                    });
+                }
             } else {
                 // Show detailed information about why no results were found
                 resultsCount.textContent = '⚠️ No CPT codes found';
@@ -595,6 +604,160 @@
                     </div>
                 `;
             }
+        }
+
+        // Display comprehensive multi-code results (NEW ENHANCEMENT)
+        function displayComprehensiveResults(comprehensiveCodes, data) {
+            const totalCodes = comprehensiveCodes.primary_codes.length + 
+                              comprehensiveCodes.anesthesia_codes.length + 
+                              comprehensiveCodes.related_codes.length;
+            
+            resultsCount.textContent = `🏥 Found ${totalCodes} comprehensive billing codes (${comprehensiveCodes.coding_confidence} confidence)`;
+            resultsContainer.innerHTML = '';
+            
+            // Medical Specialty Banner
+            const specialtyBanner = document.createElement('div');
+            specialtyBanner.style.cssText = `
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 15px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+                text-align: center;
+                font-weight: bold;
+            `;
+            specialtyBanner.innerHTML = `
+                <div>🏥 ${comprehensiveCodes.medical_specialty.toUpperCase()} SPECIALTY CODING</div>
+                <div style="font-size: 0.9em; opacity: 0.9; margin-top: 5px;">
+                    ${comprehensiveCodes.billing_summary.complexity.toUpperCase()} COMPLEXITY • 
+                    ${comprehensiveCodes.billing_summary.has_anesthesia ? 'ANESTHESIA REQUIRED' : 'NO ANESTHESIA'} • 
+                    ${comprehensiveCodes.billing_summary.has_modifiers ? 'MODIFIERS APPLIED' : 'NO MODIFIERS'}
+                </div>
+            `;
+            resultsContainer.appendChild(specialtyBanner);
+            
+            // Primary Procedure Codes
+            if (comprehensiveCodes.primary_codes.length > 0) {
+                const primarySection = document.createElement('div');
+                primarySection.innerHTML = '<h3 style="color: #2c3e50; margin: 20px 0 10px 0;">🔹 PRIMARY PROCEDURE CODES</h3>';
+                resultsContainer.appendChild(primarySection);
+                
+                comprehensiveCodes.primary_codes.forEach(result => {
+                    const resultCard = document.createElement('div');
+                    resultCard.className = 'result-card';
+                    resultCard.style.borderLeft = '4px solid #3498db';
+                    
+                    resultCard.innerHTML = `
+                        <div class="result-header">
+                            <div class="cpt-code">CPT ${result.cpt_code}</div>
+                            <div class="similarity-score">${(result.similarity * 100).toFixed(1)}% Match</div>
+                        </div>
+                        <div class="result-description">${result.description}</div>
+                        ${result.category ? `<div class="result-category">Category: ${result.category}</div>` : ''}
+                        ${result.match_terms && result.match_terms.length > 0 ? `<div style="font-size: 0.85em; color: #7f8c8d; margin-top: 8px;">Matched terms: ${result.match_terms.join(', ')}</div>` : ''}
+                    `;
+                    resultsContainer.appendChild(resultCard);
+                });
+            }
+            
+            // Anesthesia Codes
+            if (comprehensiveCodes.anesthesia_codes.length > 0) {
+                const anesthesiaSection = document.createElement('div');
+                anesthesiaSection.innerHTML = '<h3 style="color: #e74c3c; margin: 20px 0 10px 0;">💊 ANESTHESIA CODES</h3>';
+                resultsContainer.appendChild(anesthesiaSection);
+                
+                comprehensiveCodes.anesthesia_codes.forEach(anesthesia => {
+                    const anesthesiaCard = document.createElement('div');
+                    anesthesiaCard.className = 'result-card';
+                    anesthesiaCard.style.borderLeft = '4px solid #e74c3c';
+                    
+                    anesthesiaCard.innerHTML = `
+                        <div class="result-header">
+                            <div class="cpt-code">ANES ${anesthesia.code}</div>
+                            <div class="similarity-score">${(anesthesia.similarity * 100).toFixed(1)}% Match</div>
+                        </div>
+                        <div class="result-description">${anesthesia.description}</div>
+                        <div style="font-size: 0.85em; color: #7f8c8d; margin-top: 8px;">Reason: ${anesthesia.reason}</div>
+                    `;
+                    resultsContainer.appendChild(anesthesiaCard);
+                });
+            }
+            
+            // Modifiers
+            if (comprehensiveCodes.modifiers.length > 0) {
+                const modifierSection = document.createElement('div');
+                modifierSection.innerHTML = '<h3 style="color: #f39c12; margin: 20px 0 10px 0;">🏷️ BILLING MODIFIERS</h3>';
+                resultsContainer.appendChild(modifierSection);
+                
+                const modifierContainer = document.createElement('div');
+                modifierContainer.style.cssText = 'display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;';
+                
+                comprehensiveCodes.modifiers.forEach(modifier => {
+                    const modifierTag = document.createElement('div');
+                    modifierTag.style.cssText = `
+                        background: #f39c12;
+                        color: white;
+                        padding: 8px 12px;
+                        border-radius: 20px;
+                        font-size: 0.9em;
+                        font-weight: bold;
+                        display: flex;
+                        align-items: center;
+                    `;
+                    modifierTag.innerHTML = `
+                        <span style="margin-right: 8px;">-${modifier.code}</span>
+                        <span style="opacity: 0.9;">${modifier.description}</span>
+                    `;
+                    modifierTag.title = `${modifier.type}: ${modifier.reason}`;
+                    modifierContainer.appendChild(modifierTag);
+                });
+                
+                resultsContainer.appendChild(modifierContainer);
+            }
+            
+            // Related Codes
+            if (comprehensiveCodes.related_codes.length > 0) {
+                const relatedSection = document.createElement('div');
+                relatedSection.innerHTML = '<h3 style="color: #9b59b6; margin: 20px 0 10px 0;">📋 RELATED DIAGNOSTIC CODES</h3>';
+                resultsContainer.appendChild(relatedSection);
+                
+                comprehensiveCodes.related_codes.forEach(related => {
+                    const relatedCard = document.createElement('div');
+                    relatedCard.className = 'result-card';
+                    relatedCard.style.borderLeft = '4px solid #9b59b6';
+                    
+                    relatedCard.innerHTML = `
+                        <div class="result-header">
+                            <div class="cpt-code">${related.type.toUpperCase()} ${related.code}</div>
+                            <div class="similarity-score">${(related.similarity * 100).toFixed(1)}% Match</div>
+                        </div>
+                        <div class="result-description">${related.description}</div>
+                        <div style="font-size: 0.85em; color: #7f8c8d; margin-top: 8px;">Reason: ${related.reason}</div>
+                    `;
+                    resultsContainer.appendChild(relatedCard);
+                });
+            }
+            
+            // Billing Summary
+            const summaryCard = document.createElement('div');
+            summaryCard.style.cssText = `
+                background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+                color: white;
+                padding: 20px;
+                border-radius: 10px;
+                margin-top: 20px;
+                text-align: center;
+            `;
+            summaryCard.innerHTML = `
+                <h3 style="margin: 0 0 15px 0;">📊 COMPREHENSIVE BILLING SUMMARY</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; text-align: left;">
+                    <div><strong>Total Codes:</strong> ${comprehensiveCodes.billing_summary.total_codes}</div>
+                    <div><strong>Complexity:</strong> ${comprehensiveCodes.billing_summary.complexity.toUpperCase()}</div>
+                    <div><strong>Specialty:</strong> ${comprehensiveCodes.billing_summary.specialty.toUpperCase()}</div>
+                    <div><strong>Confidence:</strong> ${comprehensiveCodes.billing_summary.billing_confidence.toUpperCase()}</div>
+                </div>
+            `;
+            resultsContainer.appendChild(summaryCard);
         }
 
 

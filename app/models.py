@@ -34,6 +34,53 @@ class CPTResult(BaseModel):
     match_terms: Optional[List[str]] = Field(None, description="Matched keywords")
 
 
+class AnesthesiaCode(BaseModel):
+    """Anesthesia code result"""
+    code: str = Field(..., description="Anesthesia code")
+    description: str = Field(..., description="Anesthesia description")
+    type: str = Field(..., description="Code type")
+    similarity: float = Field(..., description="Confidence score", ge=0.0, le=1.0)
+    reason: str = Field(..., description="Reason for inclusion")
+
+
+class ModifierCode(BaseModel):
+    """Modifier code result"""
+    code: str = Field(..., description="Modifier code")
+    description: str = Field(..., description="Modifier description")
+    type: str = Field(..., description="Modifier type")
+    reason: str = Field(..., description="Reason for modifier")
+
+
+class RelatedCode(BaseModel):
+    """Related diagnostic or ancillary code"""
+    code: str = Field(..., description="Related code")
+    description: str = Field(..., description="Code description")
+    type: str = Field(..., description="Code type (diagnosis, status, etc)")
+    similarity: float = Field(..., description="Confidence score", ge=0.0, le=1.0)
+    reason: str = Field(..., description="Reason for inclusion")
+
+
+class BillingSummary(BaseModel):
+    """Billing summary statistics"""
+    total_codes: int = Field(..., description="Total number of codes")
+    has_modifiers: bool = Field(..., description="Whether modifiers are present")
+    has_anesthesia: bool = Field(..., description="Whether anesthesia codes are present")
+    complexity: str = Field(..., description="Billing complexity level")
+    specialty: str = Field(..., description="Medical specialty")
+    billing_confidence: str = Field(..., description="Overall confidence level")
+
+
+class ComprehensiveCodes(BaseModel):
+    """Comprehensive multi-code detection results"""
+    primary_codes: List[CPTResult] = Field(..., description="Primary CPT codes")
+    anesthesia_codes: List[AnesthesiaCode] = Field(..., description="Anesthesia codes")
+    modifiers: List[ModifierCode] = Field(..., description="Anatomical and procedural modifiers")
+    related_codes: List[RelatedCode] = Field(..., description="Related diagnostic codes")
+    coding_confidence: str = Field(..., description="Overall coding confidence")
+    medical_specialty: str = Field(..., description="Detected medical specialty")
+    billing_summary: BillingSummary = Field(..., description="Billing summary")
+
+
 class MedicalNoteResponse(BaseModel):
     """Response model for medical note processing - matches Firebase function format"""
     step1_extractedText: str = Field(..., description="Extracted text from input")
@@ -41,6 +88,7 @@ class MedicalNoteResponse(BaseModel):
     step3_embeddingVector: List[float] = Field(..., description="Generated embedding vector")
     step4_cptResults: List[CPTResult] = Field(..., description="CPT code search results")
     results: List[CPTResult] = Field(..., description="CPT code results (alias for step4)")
+    comprehensive_codes: Optional[ComprehensiveCodes] = Field(None, description="Enhanced multi-code detection results")
     success: bool = Field(..., description="Processing success status")
     processing_time_ms: Optional[int] = Field(None, description="Processing time in milliseconds")
     error: Optional[str] = Field(None, description="Error message if processing failed")

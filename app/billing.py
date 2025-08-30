@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from .services.vector_service import VectorService
     from .services.firestore_service import FirestoreService
     from .services.pdf_processor import PDFProcessorService
+    from .services.medical_coding_service import MedicalCodingService
     from .config import BillingConfig
 
 
@@ -33,6 +34,7 @@ class Billing:
         from app.services.vector_service import VectorService
         from app.services.firestore_service import FirestoreService
         from app.services.pdf_processor import PDFProcessorService
+        from app.services.medical_coding_service import MedicalCodingService
         
         # Load configuration
         self.config = BillingConfig()
@@ -43,6 +45,7 @@ class Billing:
         self.vector_service: 'VectorService' = VectorService(self)
         self.firestore_service: 'FirestoreService' = FirestoreService(self)
         self.pdf_processor: 'PDFProcessorService' = PDFProcessorService(self)
+        self.medical_coding: 'MedicalCodingService' = MedicalCodingService(self)
         
         print("✅ Billing System Ready")
     
@@ -76,14 +79,21 @@ class Billing:
             
             # Step 4: Search CPT codes
             print("🔍 Step 4: Searching CPT codes...")
-            results = await self.cpt_search.search_with_vector(embedding, procedures)
+            primary_results = await self.cpt_search.search_with_vector(embedding, procedures)
             
-            # Apply max_results limit
-            if len(results) > max_results:
-                results = results[:max_results]
+            # Apply max_results limit to primary results
+            if len(primary_results) > max_results:
+                primary_results = primary_results[:max_results]
             
-            pipeline_response["step4_cptResults"] = results
-            pipeline_response["results"] = results
+            # Step 5: Comprehensive multi-code detection (NEW ENHANCEMENT)
+            print("🏥 Step 5: Multi-code detection...")
+            comprehensive_codes = self.medical_coding.detect_comprehensive_codes(
+                primary_results, procedures, text
+            )
+            
+            pipeline_response["step4_cptResults"] = primary_results  # Maintain backward compatibility
+            pipeline_response["results"] = primary_results           # Legacy format
+            pipeline_response["comprehensive_codes"] = comprehensive_codes  # NEW: Enhanced results
             
             # Add processing time
             processing_time = int((time.time() - start_time) * 1000)
