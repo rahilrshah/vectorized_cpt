@@ -35,6 +35,15 @@ export class MedicalCodingService {
   
   // CPT to Anesthesia Code Mapping (common procedures)
   private cptAnesthesiaMap: { [key: string]: string } = {
+    // Cardiac procedures (00560-00566 range)
+    '33735': '00561',  // Atrial septectomy, closed -> Anesthesia for cardiac procedures
+    '33736': '00561',  // Atrial septectomy, open with bypass -> Anesthesia for procedures on heart with pump oxygenator
+    '33774': '00561',  // TGA repair with atrial baffle -> Anesthesia for cardiac procedures with bypass
+    '33776': '00561',  // TGA repair with VSD closure -> Anesthesia for cardiac procedures with bypass
+    '33641': '00561',  // Atrial septal defect repair -> Anesthesia for cardiac procedures with bypass
+    '33305': '00561',  // Cardiac wound repair with bypass -> Anesthesia for cardiac procedures with bypass
+    '33315': '00561',  // Cardiotomy with bypass -> Anesthesia for cardiac procedures with bypass
+    
     // Knee procedures
     '27447': '00402',  // Total knee arthroplasty -> Anesthesia for procedures on knee
     '27446': '00402',  // Partial knee replacement
@@ -187,32 +196,41 @@ export class MedicalCodingService {
     const modifiers: ModifierResult[] = [];
     const combinedText = (medicalText + " " + originalNote).toLowerCase();
     
-    // Anatomical laterality detection
-    const hasRight = combinedText.includes('right');
-    const hasLeft = combinedText.includes('left');
-    const hasBilateral = combinedText.includes('bilateral');
+    // Check if this is a midline procedure that shouldn't have laterality modifiers
+    const isMidlineProcedure = [
+      'atrial', 'septum', 'septal', 'heart', 'cardiac', 'aortic', 'spine', 
+      'vertebra', 'sternum', 'mediastinum', 'esophag', 'trachea'
+    ].some(term => combinedText.includes(term));
     
-    if (hasRight && !hasLeft && !hasBilateral) {
-      modifiers.push({
-        code: 'RT',
-        description: 'Right side',
-        type: 'anatomical',
-        reason: 'Right laterality identified'
-      });
-    } else if (hasLeft && !hasRight && !hasBilateral) {
-      modifiers.push({
-        code: 'LT',
-        description: 'Left side', 
-        type: 'anatomical',
-        reason: 'Left laterality identified'
-      });
-    } else if (hasBilateral || (hasRight && hasLeft)) {
-      modifiers.push({
-        code: '50',
-        description: 'Bilateral procedure',
-        type: 'anatomical',
-        reason: 'Bilateral procedure identified'
-      });
+    // Only apply laterality modifiers to procedures that can be lateral
+    if (!isMidlineProcedure) {
+      // Anatomical laterality detection
+      const hasRight = combinedText.includes('right');
+      const hasLeft = combinedText.includes('left');
+      const hasBilateral = combinedText.includes('bilateral');
+      
+      if (hasRight && !hasLeft && !hasBilateral) {
+        modifiers.push({
+          code: 'RT',
+          description: 'Right side',
+          type: 'anatomical',
+          reason: 'Right laterality identified'
+        });
+      } else if (hasLeft && !hasRight && !hasBilateral) {
+        modifiers.push({
+          code: 'LT',
+          description: 'Left side', 
+          type: 'anatomical',
+          reason: 'Left laterality identified'
+        });
+      } else if (hasBilateral || (hasRight && hasLeft)) {
+        modifiers.push({
+          code: '50',
+          description: 'Bilateral procedure',
+          type: 'anatomical',
+          reason: 'Bilateral procedure identified'
+        });
+      }
     }
     
     // Procedural modifiers
@@ -239,53 +257,63 @@ export class MedicalCodingService {
 
   /**
    * Detect related diagnostic or ancillary codes
+   * Generic approach based on medical text analysis rather than hardcoded mappings
    */
   private detectRelatedCodes(primaryCpt: string, medicalText: string): CodeResult[] {
     const relatedCodes: CodeResult[] = [];
     const lowerText = medicalText.toLowerCase();
     
-    // Common diagnostic codes based on procedures
-    const diagnosticMappings: { [key: string]: Array<{code: string, description: string, type: string}> } = {
-      '27447': [  // Total knee arthroplasty
-        { code: 'M17.9', description: 'Osteoarthritis of knee, unspecified', type: 'diagnosis' },
-        { code: 'Z96.651', description: 'Presence of right artificial knee joint', type: 'status' }
-      ],
-      '27130': [  // Total hip arthroplasty
-        { code: 'M16.9', description: 'Osteoarthritis of hip, unspecified', type: 'diagnosis' },
-        { code: 'Z96.641', description: 'Presence of right artificial hip joint', type: 'status' }
-      ]
-    };
+    // Generic pattern-based detection for common related codes
+    const diagnosticPatterns = [
+      // Common diagnostic patterns (osteoarthritis, fractures, etc.)
+      {
+        pattern: /(osteoarthritis|arthritis|degenerative)/,
+        codePattern: 'M',
+        description: 'Osteoarthritis or degenerative condition',
+        type: 'diagnosis',
+        similarity: 0.85
+      },
+      // Post-surgical status codes
+      {
+        pattern: /(replacement|implant|prosthesis|artificial)/,
+        codePattern: 'Z96',
+        description: 'Presence of artificial/prosthetic device',
+        type: 'status',
+        similarity: 0.90
+      },
+      // Injury/trauma codes
+      {
+        pattern: /(fracture|injury|trauma|accident)/,
+        codePattern: 'S',
+        description: 'Injury or trauma related',
+        type: 'diagnosis', 
+        similarity: 0.80
+      },
+      // Congenital conditions
+      {
+        pattern: /(congenital|birth|developmental)/,
+        codePattern: 'Q',
+        description: 'Congenital condition',
+        type: 'diagnosis',
+        similarity: 0.75
+      }
+    ];
     
-    if (primaryCpt in diagnosticMappings) {
-      for (const related of diagnosticMappings[primaryCpt]) {
-        // Adjust laterality for status codes
-        if (lowerText.includes('right') && related.code.includes('Z96')) {
-          relatedCodes.push({
-            ...related,
-            similarity: 0.95,
-            reason: `Standard diagnosis for ${primaryCpt}`
-          });
-        } else if (lowerText.includes('left') && related.code.includes('Z96')) {
-          // Adjust code for left side
-          const leftCode = related.code.replace('641', '642').replace('651', '652');  // Right to left
-          relatedCodes.push({
-            code: leftCode,
-            description: related.description.replace('right', 'left'),
-            type: related.type,
-            similarity: 0.95,
-            reason: `Standard diagnosis for ${primaryCpt} - left side`
-          });
-        } else {
-          relatedCodes.push({
-            ...related,
-            similarity: 0.90,
-            reason: `Standard diagnosis for ${primaryCpt}`
-          });
-        }
+    // Check for diagnostic patterns in the medical text
+    for (const pattern of diagnosticPatterns) {
+      if (pattern.pattern.test(lowerText)) {
+        relatedCodes.push({
+          code: `${pattern.codePattern}.xx`,  // Generic placeholder - would need specific ICD-10 mapping
+          description: pattern.description,
+          type: pattern.type,
+          similarity: pattern.similarity,
+          reason: `Pattern-based detection for ${primaryCpt}: ${pattern.pattern.source}`
+        });
       }
     }
     
-    return relatedCodes;
+    // Limit to most relevant codes to avoid noise
+    return relatedCodes.slice(0, 3);
   }
 
   /**

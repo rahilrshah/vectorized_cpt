@@ -72,8 +72,8 @@ export class CPTSearchService {
         // Apply strict medical relevance filtering
         const medicalRelevance = this.checkMedicalRelevance(queryTerms, description, doc);
         
-        // Only include medically relevant results with higher threshold
-        if (calculatedSimilarity >= 0.6 && matchScore > 0 && medicalRelevance.isRelevant) {
+        // Only include medically relevant results with lower threshold for better cardiology matching
+        if (calculatedSimilarity >= 0.3 && matchScore > 0 && medicalRelevance.isRelevant) {
           const result = {
             id: doc.id || `doc_${results.length}`,
             cpt_code: cptCode,
@@ -92,8 +92,20 @@ export class CPTSearchService {
       // Sort by similarity (highest first)
       results.sort((a, b) => b.similarity - a.similarity);
       
-      // Limit to top 20 results
-      const limitedResults = results.slice(0, 20);
+      // Remove duplicates by CPT code, keeping the highest similarity
+      const uniqueResults = [];
+      const seenCodes = new Set();
+      
+      for (const result of results) {
+        const cptCode = result.cpt_code;
+        if (!seenCodes.has(cptCode)) {
+          seenCodes.add(cptCode);
+          uniqueResults.push(result);
+        }
+      }
+      
+      // Limit to top 20 unique results
+      const limitedResults = uniqueResults.slice(0, 20);
 
       console.log(`✅ Firestore query returned ${limitedResults.length} documents.`);
 
@@ -136,54 +148,66 @@ export class CPTSearchService {
   }
 
   /**
-   * Enhanced term extraction for the new AI-generated comprehensive summaries
-   * Specifically designed to handle the structured output from Phase 1 prompting
+   * Enhanced term extraction for comprehensive medical summaries
+   * Generic approach that works across all medical specialties
    */
   private extractEnhancedQueryTerms(query: string): string[] {
     const lowerQuery = query.toLowerCase();
     const extractedTerms = new Set<string>();
     
-    // High-priority medical procedure terms
-    const highPriorityTerms = [
-      'arthroplasty', 'knee', 'total', 'replacement', 'bilateral', 'right', 'left',
-      'arthroscopy', 'meniscectomy', 'ligament', 'cartilage', 'osteotomy',
-      'fusion', 'repair', 'reconstruction', 'revision', 'partial',
-      'hip', 'shoulder', 'spine', 'ankle', 'elbow', 'wrist'
-    ];
-    
-    // Extract high-priority terms if present
-    for (const term of highPriorityTerms) {
-      if (lowerQuery.includes(term)) {
-        extractedTerms.add(term);
-      }
-    }
-    
-    // Extract CPT codes mentioned in the AI summary (like 27447)
+    // Extract CPT codes mentioned in the query (5-digit codes)
     const cptMatches = query.match(/\b\d{5}\b/g);
     if (cptMatches) {
       cptMatches.forEach(code => extractedTerms.add(code));
     }
     
-    // Extract specific anatomical terms from structured sections
-    const anatomicalTerms = [
-      'femur', 'tibia', 'patella', 'condyles', 'plateau',
-      'cervical', 'lumbar', 'thoracic', 'sacral'
+    // Generic high-priority medical terms (cross-specialty)
+    const medicalTermPatterns = [
+      // Procedural action terms
+      /\b(arthroplasty|arthroscopy|endarterectomy|angioplasty|catheterization)\b/g,
+      /\b(replacement|repair|reconstruction|revision|resection|excision)\b/g,
+      /\b(fusion|ablation|bypass|transplant|implant|removal)\b/g,
+      /\b(laparoscopic|endoscopic|percutaneous|minimally|invasive)\b/g,
+      
+      // Anatomical modifiers
+      /\b(total|partial|complete|bilateral|right|left|unilateral)\b/g,
+      /\b(primary|secondary|revision|complex|simple)\b/g,
+      /\b(open|closed|internal|external|anterior|posterior)\b/g,
+      
+      // General medical terms
+      /\b(surgery|surgical|procedure|operation|treatment|therapy)\b/g,
+      /\b(incision|approach|technique|method)\b/g
     ];
     
-    for (const term of anatomicalTerms) {
-      if (lowerQuery.includes(term)) {
-        extractedTerms.add(term);
+    // Extract matches from all patterns
+    for (const pattern of medicalTermPatterns) {
+      const matches = lowerQuery.match(pattern);
+      if (matches) {
+        matches.forEach(match => extractedTerms.add(match));
       }
     }
     
-    // If we don't have enough high-quality terms, use the original method
+    // Extract meaningful medical words (length > 5, likely medical terms)
+    const meaningfulWords = lowerQuery.match(/\b[a-z]{6,}\b/g) || [];
+    meaningfulWords.forEach(word => {
+      // Add words that are likely medical terms based on common medical suffixes/prefixes
+      if (word.match(/(ectomy|plasty|scopy|tomy|itis|osis|pathy|graphy|logy|ology)$/)) {
+        extractedTerms.add(word);
+      }
+    });
+    
+    // If we don't have enough specific medical terms, fall back to standard extraction
     if (extractedTerms.size < 3) {
-      const originalTerms = this.extractQueryTerms(query);
-      originalTerms.slice(0, 10).forEach(term => extractedTerms.add(term)); // Add top 10
+      const standardTerms = this.extractQueryTerms(query);
+      // Add the most important standard terms (prioritize longer, more specific terms)
+      standardTerms
+        .sort((a, b) => b.length - a.length)  // Longer terms first
+        .slice(0, 8)  // Take top 8 terms
+        .forEach(term => extractedTerms.add(term));
     }
     
     const result = Array.from(extractedTerms);
-    console.log(`🔍 Enhanced extraction found ${result.length} key terms: ${result.join(', ')}`);
+    console.log(`🔍 Generic enhanced extraction found ${result.length} key terms: ${result.join(', ')}`);
     
     return result;
   }
@@ -209,42 +233,30 @@ export class CPTSearchService {
     const lowerDesc = description.toLowerCase();
     const lowerQuery = queryTerms.join(' ').toLowerCase();
     
-    // Define medical specialty incompatibilities
-    const orthopedicQuery = ['arthroplasty', 'knee', 'hip', 'joint', 'bone', 'femur', 'tibia', 'patella', 'condyle'].some(term => lowerQuery.includes(term));
-    const gynecologicalProcedure = ['hysterectomy', 'oophorectomy', 'ovary', 'uterus', 'cervix', 'fallopian', 'salpingo'].some(term => lowerDesc.includes(term));
-    const cardiacProcedure = ['heart', 'cardiac', 'ventricle', 'aortic', 'pulmonary', 'septal'].some(term => lowerDesc.includes(term));
-    const gastroIntestinalProcedure = ['colon', 'intestine', 'stomach', 'bowel', 'gastric'].some(term => lowerDesc.includes(term));
+    // Simple relevance check: require at least some meaningful medical term overlap
+    // This avoids the complexity of specialty-specific rules that don't scale
     
-    // Block cross-specialty contamination
-    if (orthopedicQuery && gynecologicalProcedure) {
-      return { isRelevant: false, reason: 'orthopedic_gynecological_mismatch' };
+    // Block procedures that match only on very generic terms
+    const onlyGenericMatches = queryTerms.every(term => 
+      ['total', 'bilateral', 'right', 'left', 'replacement', 'repair', 'with', 'and', 'the', 'or', 'procedure'].includes(term.toLowerCase())
+    );
+    
+    // Require at least one meaningful medical term match
+    const hasMedicalTermMatch = queryTerms.some(term => {
+      // Longer terms are usually more specific
+      if (term.length > 5) return true;
+      
+      // Term appears in description
+      if (lowerDesc.includes(term)) return true;
+      
+      return false;
+    });
+    
+    if (onlyGenericMatches || !hasMedicalTermMatch) {
+      return { isRelevant: false, reason: 'insufficient_specific_matches' };
     }
     
-    if (orthopedicQuery && cardiacProcedure) {
-      return { isRelevant: false, reason: 'orthopedic_cardiac_mismatch' };
-    }
-    
-    if (orthopedicQuery && gastroIntestinalProcedure) {
-      return { isRelevant: false, reason: 'orthopedic_gi_mismatch' };
-    }
-    
-    // Require strong anatomical alignment for orthopedic procedures
-    if (orthopedicQuery) {
-      const hasOrthopedicAnatomy = ['knee', 'hip', 'joint', 'bone', 'femur', 'tibia', 'patella', 'condyle', 'arthroplasty'].some(term => lowerDesc.includes(term));
-      if (!hasOrthopedicAnatomy) {
-        return { isRelevant: false, reason: 'missing_orthopedic_anatomy' };
-      }
-    }
-    
-    // Block procedures that match only on generic terms
-    const queryHasSpecific = queryTerms.some(term => term.length > 6 || ['knee', 'hip', 'arthroplasty', 'arthroscopy'].includes(term.toLowerCase()));
-    const onlyGenericMatches = queryTerms.every(term => ['total', 'bilateral', 'right', 'left', 'replacement'].includes(term.toLowerCase()));
-    
-    if (onlyGenericMatches && !queryHasSpecific) {
-      return { isRelevant: false, reason: 'only_generic_matches' };
-    }
-    
-    return { isRelevant: true, reason: 'medically_relevant' };
+    return { isRelevant: true, reason: 'has_specific_medical_matches' };
   }
 
   /**
@@ -257,27 +269,25 @@ export class CPTSearchService {
     const descLower = description.toLowerCase();
     const queryLower = queryTerms.join(' ').toLowerCase();
     
-    // Enhanced anatomical keywords with precision weighting
+    // Generic medical keywords with precision weighting (no specialty-specific bias)
     const anatomicalKeywords = {
-      // Skeletal/Orthopedic (high precision)
-      'knee': 0.8, 'hip': 0.8, 'shoulder': 0.8, 'ankle': 0.8, 'elbow': 0.8,
-      'spine': 0.8, 'vertebra': 0.8, 'femur': 0.8, 'tibia': 0.8, 'fibula': 0.8,
-      'patella': 0.8, 'meniscus': 0.8, 'cartilage': 0.7, 'ligament': 0.7,
+      // High-precision anatomical terms (generic approach)
+      'repair': 0.8, 'reconstruction': 0.8, 'resection': 0.8, 'excision': 0.8,
+      'replacement': 0.85, 'revision': 0.85, 'total': 0.7, 'partial': 0.7,
       
-      // Procedure specificity (very high precision)
-      'arthroplasty': 0.9, 'arthroscopy': 0.9, 'replacement': 0.85, 'revision': 0.85,
-      'total': 0.8, 'partial': 0.8, 'osteotomy': 0.85, 'fusion': 0.85,
-      'repair': 0.7, 'reconstruction': 0.8, 'resection': 0.8,
+      // Laterality (important for billing accuracy)
+      'right': 0.8, 'left': 0.8, 'bilateral': 0.9, 'unilateral': 0.7,
       
-      // Laterality (critical for billing)
-      'right': 0.9, 'left': 0.9, 'bilateral': 0.95, 'unilateral': 0.8,
+      // Surgical approaches (affects coding)
+      'open': 0.7, 'closed': 0.7, 'endoscopic': 0.8, 'percutaneous': 0.8,
+      'minimally': 0.7, 'invasive': 0.7, 'laparoscopic': 0.8,
       
-      // Surgical approaches
-      'open': 0.7, 'arthroscopic': 0.8, 'endoscopic': 0.8, 'percutaneous': 0.8,
-      'minimally': 0.7, 'invasive': 0.7,
+      // General medical terms (basic weighting)
+      'surgery': 0.5, 'surgical': 0.5, 'procedure': 0.5, 'operation': 0.5,
+      'treatment': 0.5, 'therapy': 0.5,
       
-      // General medical terms (lower weight)
-      'surgery': 0.5, 'surgical': 0.5, 'procedure': 0.5, 'operation': 0.5
+      // Important qualifiers
+      'with': 0.4, 'without': 0.4, 'including': 0.4, 'primary': 0.6, 'secondary': 0.6
     };
     
     // Calculate anatomical precision score (0-1)
@@ -338,9 +348,19 @@ export class CPTSearchService {
       similarity *= 1.4; // Major boost for near-perfect medical alignment
     }
     
-    // Special boost for exact CPT code matches in query  
-    if (queryLower.includes('27447') && descLower.includes('arthroplasty') && descLower.includes('knee')) {
-      similarity *= 1.8; // Huge boost for exact CPT code identification
+    // Generic boost for exact CPT code matches in query
+    const cptMatches = queryLower.match(/\b\d{5}\b/g);
+    if (cptMatches && cptMatches.length > 0) {
+      // Check if any CPT code from query appears in the description context
+      const hasExactCptMatch = cptMatches.some(code => 
+        queryLower.includes(code) && (descLower.includes(code) || 
+        // Check for high procedural term alignment when CPT code is mentioned
+        (anatomicalScore > 0.8 && exactMatchRatio > 0.6))
+      );
+      
+      if (hasExactCptMatch) {
+        similarity *= 1.8; // Major boost for exact CPT code identification
+      }
     }
     
     // Cap at realistic maximum (98% to leave room for perfect matches)
