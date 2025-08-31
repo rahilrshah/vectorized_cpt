@@ -1,0 +1,9 @@
+runtime: python311
+service: vectorized-cpt-web
+
+env_variables:
+  PYTHONPATH: /srv
+  API_GATEWAY_URL: https://api-gateway-65650340228.us-central1.run.app
+
+manual_scaling:
+  instances: 1

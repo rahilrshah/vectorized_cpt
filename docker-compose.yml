@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  medical-processor:
+    build:
+      context: .
+      dockerfile: api_services/medical_processor/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - .:/app
+      - ./cpt-code-vectorized-dataset-firebase-adminsdk-fbsvc-2c5f693340.json:/app/service-account.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cpt-network
+
+  cpt-search:
+    build:
+      context: .
+      dockerfile: api_services/cpt_search/Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - .:/app
+      - ./cpt-code-vectorized-dataset-firebase-adminsdk-fbsvc-2c5f693340.json:/app/service-account.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cpt-network
+
+  medical-coding:
+    build:
+      context: .
+      dockerfile: api_services/medical_coding/Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - .:/app
+      - ./cpt-code-vectorized-dataset-firebase-adminsdk-fbsvc-2c5f693340.json:/app/service-account.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cpt-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api_gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./api_keys.db:/app/api_keys.db
+    depends_on:
+      - medical-processor
+      - cpt-search
+      - medical-coding
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cpt-network
+
+networks:
+  cpt-network:
+    driver: bridge
+
+volumes:
+  api-keys-db:
+    driver: local

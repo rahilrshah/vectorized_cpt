@@ -44,6 +44,15 @@ class BillingConfig:
         self.similarity_threshold = 0.70  # From Firebase function
         self.max_results_default = 20
         
+        # --- Uppercase aliases for microservices compatibility ---
+        self.PROJECT_ID = self.project_id
+        self.LOCATION = self.location
+        self.COLLECTION_NAME = self.collection_name
+        self.EMBEDDING_MODEL = self.embedding_model
+        self.GENERATIVE_MODEL = self.generative_model
+        self.DIMENSIONS = self.dimensions
+        self.FIRESTORE_VECTOR_FIELD = self.firestore_vector_field
+        
         print("📋 Configuration loaded successfully")
         print(f"   Project: {self.project_id}")
         print(f"   Location: {self.location}")
