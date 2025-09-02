@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vectorized CPT - API Testing Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2.2em;
+            margin-bottom: 5px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .api-status {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .status-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .status-indicator {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .status-connected {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .status-disconnected {
+            background: #f44336;
+            color: white;
+        }
+
+        .status-unconfigured {
+            background: #ff9800;
+            color: white;
+        }
+
+        .api-key-btn {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        .api-key-btn:hover {
+            background: #1976D2;
+        }
+
+        .tabs {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            overflow-x: auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .tab {
+            padding: 15px 25px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 1em;
+            border-bottom: 3px solid transparent;
+            white-space: nowrap;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover {
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        .tab.active {
+            background: rgba(76, 175, 80, 0.1);
+            border-bottom-color: #4CAF50;
+            font-weight: 500;
+        }
+
+        .tab-content {
+            background: rgba(255,255,255,0.95);
+            border-radius: 0 0 10px 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            min-height: 600px;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            background: #45a049;
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #2196F3;
+        }
+
+        .btn-secondary:hover {
+            background: #1976D2;
+        }
+
+        .btn-warning {
+            background: #ff9800;
+        }
+
+        .btn-warning:hover {
+            background: #f57c00;
+        }
+
+        .results-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: #4CAF50;
+            font-size: 1.1em;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #f44336;
+            margin-bottom: 20px;
+        }
+
+        .success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+            margin-bottom: 20px;
+        }
+
+        .workflow-step {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .workflow-step h4 {
+            color: #4CAF50;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .status-pending {
+            background: #fafafa;
+            color: #666;
+        }
+
+        .status-running {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+
+        .status-completed {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .status-error {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .code-block {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            margin-top: 10px;
+        }
+
+        .cpt-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .cpt-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            transition: transform 0.2s ease;
+        }
+
+        .cpt-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .cpt-code {
+            background: #4CAF50;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+
+        .similarity-score {
+            background: #2196F3;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            float: right;
+        }
+
+        .health-dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .service-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .service-name {
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .service-status {
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .service-healthy {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .service-unhealthy {
+            background: #f44336;
+            color: white;
+        }
+
+        .service-degraded {
+            background: #ff9800;
+            color: white;
+        }
+
+        .pdf-upload {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            transition: border-color 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .pdf-upload:hover {
+            border-color: #4CAF50;
+        }
+
+        .pdf-upload.dragover {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 10px;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab {
+                text-align: center;
+            }
+            
+            .api-status {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .cpt-results {
+                grid-template-columns: 1fr;
+            }
+            
+            .health-dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* API Key Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏥 Vectorized CPT - API Testing Interface</h1>
+        <p>Comprehensive testing platform for the microservices architecture</p>
+    </div>
+
+    <div class="container">
+        <!-- API Status Bar -->
+        <div class="api-status">
+            <div class="status-info">
+                <div id="apiStatusIndicator" class="status-indicator status-unconfigured">
+                    {% if api_configured %}
+                        ✅ API Connected
+                    {% else %}
+                        ⚠️ API Key Required
+                    {% endif %}
+                </div>
+                {% if current_api_key %}
+                <span>Key: {{ current_api_key }}</span>
+                {% endif %}
+            </div>
+            <button class="api-key-btn" onclick="showApiKeyModal()">
+                {% if api_configured %}Configure New Key{% else %}Configure API Key{% endif %}
+            </button>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab(event, 'workflow')">🔄 Complete Workflow</button>
+            <button class="tab" onclick="switchTab(event, 'testing')">🧪 Service Testing</button>
+            <button class="tab" onclick="switchTab(event, 'pdf')">📄 PDF Processing</button>
+            <button class="tab" onclick="switchTab(event, 'health')">📊 Health Dashboard</button>
+            <button class="tab" onclick="switchTab(event, 'usage')">📈 Usage Analytics</button>
+        </div>
+
+        <div class="tab-content">
+            <!-- Complete Workflow Tab -->
+            <div id="workflow" class="tab-panel active">
+                <h2>Complete Medical Coding Workflow</h2>
+                <p>Test the full end-to-end pipeline: Text Processing → CPT Search → Comprehensive Coding</p>
+                
+                <form id="workflowForm" onsubmit="runCompleteWorkflow(event)">
+                    <div class="form-group">
+                        <label for="workflowText">Medical Note Text:</label>
+                        <textarea id="workflowText" class="form-input form-textarea" 
+                                placeholder="Enter a medical note description, e.g., 'Patient underwent arthroscopic knee surgery with meniscus repair and ligament reconstruction.'" 
+                                required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="maxResults">Maximum Results:</label>
+                        <input type="number" id="maxResults" class="form-input" value="20" min="1" max="100">
+                    </div>
+                    
+                    <button type="submit" class="btn">🚀 Run Complete Workflow</button>
+                    <button type="button" class="btn btn-secondary" onclick="loadWorkflowExample()">📝 Load Example</button>
+                </form>
+
+                <div id="workflowLoading" class="loading">
+                    <div>🔄 Processing medical note through complete workflow...</div>
+                    <div style="font-size: 0.9em; margin-top: 10px; opacity: 0.7;">
+                        This may take 5-15 seconds depending on complexity
+                    </div>
+                </div>
+
+                <div id="workflowResults" class="results-section" style="display: none;"></div>
+            </div>
+
+            <!-- Service Testing Tab -->
+            <div id="testing" class="tab-panel">
+                <h2>Individual Service Testing</h2>
+                <p>Test each microservice independently to verify functionality</p>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                    <!-- Medical Text Processing Test -->
+                    <div class="service-card">
+                        <h3>🤖 Medical Text Processing</h3>
+                        <form onsubmit="testExtractProcedures(event)">
+                            <div class="form-group">
+                                <textarea class="form-input" id="extractText" 
+                                         placeholder="Enter medical text to extract procedures..." required></textarea>
+                            </div>
+                            <button type="submit" class="btn">Test Extract</button>
+                        </form>
+                        <div id="extractResults"></div>
+                    </div>
+
+                    <!-- CPT Search Test -->
+                    <div class="service-card">
+                        <h3>🔍 CPT Code Search</h3>
+                        <form onsubmit="testCPTSearch(event)">
+                            <div class="form-group">
+                                <textarea class="form-input" id="searchText" 
+                                         placeholder="Enter procedure description for CPT search..." required></textarea>
+                            </div>
+                            <button type="submit" class="btn">Test Search</button>
+                        </form>
+                        <div id="searchResults"></div>
+                    </div>
+
+                    <!-- Comprehensive Coding Test -->
+                    <div class="service-card">
+                        <h3>🏥 Comprehensive Coding</h3>
+                        <form onsubmit="testComprehensiveCoding(event)">
+                            <div class="form-group">
+                                <textarea class="form-input" id="primaryCodes" 
+                                         placeholder='[{"cpt_code": "29881", "description": "Arthroscopy knee"}]' required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <textarea class="form-input" id="medicalText" 
+                                         placeholder="Medical procedures text..." required></textarea>
+                            </div>
+                            <button type="submit" class="btn">Test Coding</button>
+                        </form>
+                        <div id="codingResults"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PDF Processing Tab -->
+            <div id="pdf" class="tab-panel">
+                <h2>PDF Document Processing</h2>
+                <p>Upload and process medical PDF documents through the complete workflow</p>
+
+                <form id="pdfForm" onsubmit="processPDF(event)">
+                    <div class="pdf-upload" id="pdfDropZone" onclick="document.getElementById('pdfFile').click()">
+                        <div>
+                            📄 Click to select or drag & drop a PDF file
+                            <br>
+                            <small>Supported: Medical notes, discharge summaries, operative reports</small>
+                        </div>
+                        <input type="file" id="pdfFile" accept=".pdf" style="display: none;" onchange="handleFileSelect(event)">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="pdfAdditionalText">Additional Text (optional):</label>
+                        <textarea id="pdfAdditionalText" class="form-input form-textarea" 
+                                 placeholder="Any additional medical information not in the PDF..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn">📄 Process PDF</button>
+                    <button type="button" class="btn btn-secondary" onclick="clearPDF()">🗑️ Clear</button>
+                </form>
+
+                <div id="pdfLoading" class="loading">
+                    <div>📄 Processing PDF document...</div>
+                </div>
+
+                <div id="pdfResults" class="results-section" style="display: none;"></div>
+            </div>
+
+            <!-- Health Dashboard Tab -->
+            <div id="health" class="tab-panel">
+                <h2>Service Health Dashboard</h2>
+                <p>Real-time monitoring of all microservices and system components</p>
+
+                <button class="btn btn-secondary" onclick="refreshHealthStatus()" style="margin-bottom: 20px;">
+                    🔄 Refresh Status
+                </button>
+
+                <div id="healthDashboard" class="health-dashboard">
+                    <div class="service-card">
+                        <div class="service-header">
+                            <span class="service-name">Loading...</span>
+                            <span class="service-status status-pending">⏳ Checking</span>
+                        </div>
+                        <div>Please wait while we check service status...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Usage Analytics Tab -->
+            <div id="usage" class="tab-panel">
+                <h2>API Usage Analytics</h2>
+                <p>Monitor your API key usage, rate limits, and performance metrics</p>
+
+                <button class="btn btn-secondary" onclick="refreshUsageStats()" style="margin-bottom: 20px;">
+                    📊 Refresh Stats
+                </button>
+
+                <div id="usageStats">
+                    <div class="service-card">
+                        <div class="service-header">
+                            <span class="service-name">Usage Statistics</span>
+                        </div>
+                        <div>Configure an API key to view usage statistics</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key Configuration Modal -->
+    <div id="apiKeyModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="hideApiKeyModal()">&times;</span>
+            <h3>Configure API Key</h3>
+            <p>Enter your Vectorized CPT API key to access the microservices:</p>
+            
+            <form id="apiKeyForm" onsubmit="configureApiKey(event)">
+                <div class="form-group">
+                    <label for="apiKeyInput">API Key:</label>
+                    <input type="password" id="apiKeyInput" class="form-input" 
+                           placeholder="vcp_your_api_key_here..." required>
+                </div>
+                <button type="submit" class="btn">💾 Save & Test Connection</button>
+                <button type="button" class="btn btn-secondary" onclick="hideApiKeyModal()">Cancel</button>
+            </form>
+
+            <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <h4>How to get an API key:</h4>
+                <ol>
+                    <li>Start the microservices: <code>python start_services.py start</code></li>
+                    <li>Create an API key: <code>python start_services.py create-key</code></li>
+                    <li>Copy the generated key and paste it above</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/api_scripts.js"></script>
+    <script>
+        // Initialize the interface
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-refresh health status if API is configured
+            {% if api_configured %}
+            refreshHealthStatus();
+            refreshUsageStats();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(() => {
+                if (document.getElementById('health').classList.contains('active')) {
+                    refreshHealthStatus();
+                }
+            }, 30000);
+            {% endif %}
+        });
+
+        // Load example workflow text
+        function loadWorkflowExample() {
+            document.getElementById('workflowText').value = 
+                'Patient underwent bilateral total knee arthroplasty with computer-assisted navigation. ' +
+                'General anesthesia was administered. Post-operative pain management included epidural catheter. ' +
+                'Patient also received prophylactic antibiotics and DVT prophylaxis. ' +
+                'Procedure was uncomplicated with excellent range of motion achieved.';
+        }
+    </script>
+</body>
+</html>

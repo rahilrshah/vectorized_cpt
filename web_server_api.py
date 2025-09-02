@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-API-Integrated Web Server for Vectorized CPT Services
-FastAPI-based web server that demonstrates the complete microservices architecture
-Provides comprehensive testing interface for all API functionality
+Web Server for Vectorized CPT API Gateway
+FastAPI-based web server that provides testing interface for the API Gateway
+Serves the static web testing dashboard
 """
 
 import os
@@ -14,26 +14,21 @@ from datetime import datetime
 import httpx
 from fastapi import FastAPI, HTTPException, Form, File, UploadFile, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
-from app.api_client import APIClient
-
 class WebAPIClient:
-    """Web-specific API client with enhanced error handling"""
+    """Web-specific API client for API Gateway communication"""
     
-    def __init__(self, api_key: Optional[str] = None, gateway_url: str = "http://localhost:8000"):
+    def __init__(self, api_key: Optional[str] = None, gateway_url: str = None):
         self.api_key = api_key or os.getenv("VECTORIZED_CPT_API_KEY")
-        self.gateway_url = gateway_url.rstrip("/")
-        self.client = None
-        
-        if self.api_key:
-            self.client = APIClient(self.api_key, gateway_url)
+        # Use Railway environment variable or fallback to localhost
+        self.gateway_url = (gateway_url or 
+                           os.getenv("API_GATEWAY_URL", "http://localhost:8000")).rstrip("/")
     
     def is_configured(self) -> bool:
         """Check if API client is properly configured"""
-        return self.client is not None
+        return self.api_key is not None
     
     async def test_connection(self) -> Dict[str, Any]:
         """Test API Gateway connection"""
@@ -51,54 +46,94 @@ class WebAPIClient:
             return {"success": False, "error": str(e)}
     
     async def complete_workflow(self, text: str, max_results: int = 20, pdf_base64: Optional[str] = None) -> Dict[str, Any]:
-        """Execute complete medical coding workflow"""
+        """Execute complete medical coding workflow via API Gateway"""
         if not self.is_configured():
             return {"success": False, "error": "API key not configured"}
         
         try:
-            return await self.client.process_medical_note(
-                text=text,
-                max_results=max_results,
-                include_comprehensive=True,
-                pdf_base64=pdf_base64
-            )
+            async with httpx.AsyncClient(timeout=60) as client:
+                payload = {
+                    "text": text,
+                    "max_results": max_results,
+                    "include_comprehensive": True
+                }
+                if pdf_base64:
+                    payload["pdf_base64"] = pdf_base64
+                
+                response = await client.post(
+                    f"{self.gateway_url}/api/v1/billing/process-note",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {self.api_key}"}
+                )
+                
+                if response.status_code == 200:
+                    return {"success": True, "data": response.json()}
+                else:
+                    return {"success": False, "error": f"API returned {response.status_code}: {response.text}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
     
     async def extract_procedures(self, text: str) -> Dict[str, Any]:
-        """Test medical text processing service"""
+        """Test medical text processing via API Gateway"""
         if not self.is_configured():
             return {"success": False, "error": "API key not configured"}
         
         try:
-            result = await self.client.extract_procedures_from_text(text)
-            return {"success": True, "data": result}
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.post(
+                    f"{self.gateway_url}/api/v1/billing/extract-procedures",
+                    json={"text": text},
+                    headers={"Authorization": f"Bearer {self.api_key}"}
+                )
+                
+                if response.status_code == 200:
+                    return {"success": True, "data": response.json()}
+                else:
+                    return {"success": False, "error": f"API returned {response.status_code}: {response.text}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
     
     async def search_cpt_codes(self, procedures: str, max_results: int = 20) -> Dict[str, Any]:
-        """Test CPT search service"""
+        """Test CPT search via API Gateway"""
         if not self.is_configured():
             return {"success": False, "error": "API key not configured"}
         
         try:
-            result = await self.client.search_cpt_codes(procedures, max_results)
-            return {"success": True, "data": result}
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.post(
+                    f"{self.gateway_url}/api/v1/billing/search-cpt",
+                    json={"procedures": procedures, "max_results": max_results},
+                    headers={"Authorization": f"Bearer {self.api_key}"}
+                )
+                
+                if response.status_code == 200:
+                    return {"success": True, "data": response.json()}
+                else:
+                    return {"success": False, "error": f"API returned {response.status_code}: {response.text}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
     
     async def comprehensive_coding(self, primary_codes: list, medical_text: str, original_note: str) -> Dict[str, Any]:
-        """Test comprehensive medical coding service"""
+        """Test comprehensive medical coding via API Gateway"""
         if not self.is_configured():
             return {"success": False, "error": "API key not configured"}
         
         try:
-            result = await self.client.comprehensive_medical_coding(
-                primary_codes=primary_codes,
-                medical_text=medical_text,
-                original_note=original_note
-            )
-            return {"success": True, "data": result}
+            async with httpx.AsyncClient(timeout=60) as client:
+                response = await client.post(
+                    f"{self.gateway_url}/api/v1/billing/comprehensive-coding",
+                    json={
+                        "primary_codes": primary_codes,
+                        "medical_text": medical_text,
+                        "original_note": original_note
+                    },
+                    headers={"Authorization": f"Bearer {self.api_key}"}
+                )
+                
+                if response.status_code == 200:
+                    return {"success": True, "data": response.json()}
+                else:
+                    return {"success": False, "error": f"API returned {response.status_code}: {response.text}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
     
@@ -108,7 +143,16 @@ class WebAPIClient:
             return {"success": False, "error": "API key not configured"}
         
         try:
-            return await self.client.get_health_status()
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(
+                    f"{self.gateway_url}/health",
+                    headers={"Authorization": f"Bearer {self.api_key}"}
+                )
+                
+                if response.status_code == 200:
+                    return {"success": True, "data": response.json()}
+                else:
+                    return {"success": False, "error": f"API returned {response.status_code}: {response.text}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
     
@@ -118,7 +162,16 @@ class WebAPIClient:
             return {"success": False, "error": "API key not configured"}
         
         try:
-            return await self.client.get_usage_stats()
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(
+                    f"{self.gateway_url}/api/v1/admin/usage",
+                    headers={"Authorization": f"Bearer {self.api_key}"}
+                )
+                
+                if response.status_code == 200:
+                    return {"success": True, "data": response.json()}
+                else:
+                    return {"success": False, "error": f"API returned {response.status_code}: {response.text}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -148,20 +201,23 @@ app = FastAPI(
 # Global API client
 web_client = WebAPIClient()
 
-# Setup templates and static files
-templates = Jinja2Templates(directory="templates")
+# Setup static files
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    """Main web interface"""
-    return templates.TemplateResponse("index_api.html", {
-        "request": request,
-        "api_configured": web_client.is_configured(),
-        "current_api_key": web_client.api_key[:20] + "..." if web_client.api_key else None
-    })
+async def index():
+    """Main web interface - serve the HTML dashboard"""
+    try:
+        with open("static/web_tester.html", "r") as f:
+            html_content = f.read()
+        return HTMLResponse(content=html_content)
+    except FileNotFoundError:
+        return HTMLResponse(
+            content="<h1>Web Tester Not Found</h1><p>static/web_tester.html not found</p>",
+            status_code=404
+        )
 
 
 @app.post("/api/configure")
@@ -355,6 +411,81 @@ async def get_interface_status():
         status["gateway_error"] = "API key not configured"
     
     return status
+
+
+@app.get("/api/teams")
+async def list_teams():
+    """Get list of available teams (requires admin API key)"""
+    global web_client
+    
+    if not web_client.is_configured():
+        raise HTTPException(status_code=400, detail="API key not configured")
+    
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(
+                f"{web_client.gateway_url}/api/v1/admin/teams",
+                headers={"Authorization": f"Bearer {web_client.api_key}"}
+            )
+            
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            else:
+                return {"success": False, "error": f"API returned {response.status_code}: {response.text}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/validate-key/{api_key}")
+async def validate_api_key(api_key: str):
+    """Validate an API key and return team information"""
+    try:
+        test_client = WebAPIClient(api_key, web_client.gateway_url)
+        result = await test_client.test_connection()
+        
+        if result["success"]:
+            return {
+                "valid": True,
+                "message": "API key is valid",
+                "gateway_status": result.get("data", {})
+            }
+        else:
+            return {
+                "valid": False,
+                "error": result["error"]
+            }
+    except Exception as e:
+        return {
+            "valid": False,
+            "error": str(e)
+        }
+
+
+@app.post("/api/quick-test")
+async def quick_test_endpoint(request: dict):
+    """Quick test endpoint for the dashboard"""
+    api_key = request.get("api_key")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key required")
+    
+    test_client = WebAPIClient(api_key, web_client.gateway_url)
+    
+    # Test with a simple medical note
+    test_text = "Patient underwent coronary angioplasty with drug eluting stent placement"
+    
+    result = await test_client.complete_workflow(test_text, max_results=5)
+    
+    if result["success"]:
+        return {
+            "success": True,
+            "message": "Quick test completed successfully",
+            "results": result["data"]
+        }
+    else:
+        return {
+            "success": False,
+            "error": result["error"]
+        }
 
 
 # Legacy endpoint compatibility with original web server

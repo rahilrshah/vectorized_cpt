@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vectorized CPT API Tester</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .main-content {
+            background-color: #f8f9fa;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+        }
+        .btn-gradient:hover {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+            color: white;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-healthy { background-color: #28a745; }
+        .status-unhealthy { background-color: #dc3545; }
+        .status-pending { background-color: #ffc107; }
+        .response-container {
+            max-height: 400px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            border-radius: 0.375rem;
+            padding: 1rem;
+        }
+        .team-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .feature-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 sidebar text-white p-4">
+                <h3 class="mb-4">
+                    <i class="fas fa-hospital-user"></i>
+                    Vectorized CPT
+                </h3>
+                
+                <!-- API Key Section -->
+                <div class="card bg-transparent border-light mb-4">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-key"></i> API Authentication
+                        </h6>
+                        <div class="mb-3">
+                            <label for="apiKey" class="form-label">API Key:</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="apiKey" placeholder="vcp_your_api_key_here">
+                                <button class="btn btn-outline-light" type="button" onclick="toggleApiKeyVisibility()">
+                                    <i class="fas fa-eye" id="eyeIcon"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button class="btn btn-light btn-sm w-100" onclick="validateApiKey()">
+                            <i class="fas fa-check"></i> Validate Key
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Team Info -->
+                <div class="card bg-transparent border-light mb-4" id="teamInfoCard" style="display: none;">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-users"></i> Team Information
+                        </h6>
+                        <div id="teamInfo">
+                            <!-- Team info will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation -->
+                <nav class="nav nav-pills flex-column">
+                    <a class="nav-link text-light active" href="#dashboard" onclick="showSection('dashboard')">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    </a>
+                    <a class="nav-link text-light" href="#medical-processing" onclick="showSection('medical-processing')">
+                        <i class="fas fa-stethoscope"></i> Medical Processing
+                    </a>
+                    <a class="nav-link text-light" href="#api-testing" onclick="showSection('api-testing')">
+                        <i class="fas fa-code"></i> API Testing
+                    </a>
+                    <a class="nav-link text-light" href="#team-management" onclick="showSection('team-management')">
+                        <i class="fas fa-cogs"></i> Team Management
+                    </a>
+                    <a class="nav-link text-light" href="#analytics" onclick="showSection('analytics')">
+                        <i class="fas fa-chart-bar"></i> Analytics
+                    </a>
+                </nav>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 main-content p-4">
+                <!-- Dashboard Section -->
+                <div id="dashboard" class="content-section">
+                    <h2 class="mb-4">
+                        <i class="fas fa-tachometer-alt"></i> System Dashboard
+                    </h2>
+                    
+                    <!-- System Status -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-heartbeat"></i> System Health
+                                </div>
+                                <div class="card-body">
+                                    <button class="btn btn-gradient btn-sm mb-3" onclick="checkSystemHealth()">
+                                        <i class="fas fa-sync"></i> Refresh Status
+                                    </button>
+                                    <div id="systemHealth">
+                                        <div class="text-muted">Click refresh to check system status</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-info-circle"></i> API Information
+                                </div>
+                                <div class="card-body">
+                                    <button class="btn btn-gradient btn-sm mb-3" onclick="getApiInfo()">
+                                        <i class="fas fa-info"></i> Load Info
+                                    </button>
+                                    <div id="apiInfo">
+                                        <div class="text-muted">Click to load API information</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-rocket"></i> Quick Actions
+                                </div>
+                                <div class="card-body">
+                                    <button class="btn btn-gradient me-2 mb-2" onclick="setupDemoTeams()">
+                                        <i class="fas fa-magic"></i> Setup Demo Teams
+                                    </button>
+                                    <button class="btn btn-outline-primary me-2 mb-2" onclick="showSection('medical-processing')">
+                                        <i class="fas fa-stethoscope"></i> Test Medical Processing
+                                    </button>
+                                    <button class="btn btn-outline-success me-2 mb-2" onclick="showSection('api-testing')">
+                                        <i class="fas fa-code"></i> API Testing
+                                    </button>
+                                    <button class="btn btn-outline-info mb-2" onclick="downloadApiKeys()" disabled id="downloadKeysBtn">
+                                        <i class="fas fa-download"></i> Download API Keys
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Medical Processing Section -->
+                <div id="medical-processing" class="content-section" style="display: none;">
+                    <h2 class="mb-4">
+                        <i class="fas fa-stethoscope"></i> Medical Note Processing
+                    </h2>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-file-medical"></i> Complete Workflow Testing
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="medicalNote" class="form-label">Medical Note:</label>
+                                        <textarea class="form-control" id="medicalNote" rows="8" placeholder="Enter medical note text here...">Patient: John Smith
+Date: 2024-01-15
+
+PROCEDURE: Arthroscopic partial meniscectomy, right knee
+
+INDICATION: The patient is a 45-year-old male with a torn medial meniscus of the right knee confirmed by MRI. Conservative treatment failed.
+
+PROCEDURE DETAILS: Under general anesthesia, diagnostic arthroscopy was performed followed by partial meniscectomy of the torn medial meniscus. The joint was irrigated and instruments removed. Patient tolerated procedure well.
+
+POST-OP: Patient discharged home with crutches and follow-up in 2 weeks.</textarea>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-4">
+                                            <label for="maxResults" class="form-label">Max Results:</label>
+                                            <input type="number" class="form-control" id="maxResults" value="10" min="1" max="100">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check mt-4">
+                                                <input class="form-check-input" type="checkbox" id="includeComprehensive" checked>
+                                                <label class="form-check-label" for="includeComprehensive">
+                                                    Include Comprehensive Coding
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <button class="btn btn-gradient w-100 mt-4" onclick="processCompleteWorkflow()" id="processBtn">
+                                                <i class="fas fa-cogs"></i> Process Medical Note
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="workflowResults" style="display: none;">
+                                        <hr>
+                                        <h5>Processing Results:</h5>
+                                        <div class="response-container">
+                                            <pre id="workflowResponse" class="mb-0"></pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sample Medical Notes -->
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-clipboard-list"></i> Sample Medical Notes
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <button class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="loadSampleNote('knee')">
+                                                Knee Surgery
+                                            </button>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <button class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="loadSampleNote('cardiology')">
+                                                Cardiology Consultation
+                                            </button>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <button class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="loadSampleNote('emergency')">
+                                                Emergency Visit
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Testing Section -->
+                <div id="api-testing" class="content-section" style="display: none;">
+                    <h2 class="mb-4">
+                        <i class="fas fa-code"></i> Individual API Testing
+                    </h2>
+                    
+                    <div class="row">
+                        <!-- Medical Extract -->
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-extract"></i> Medical Text Extraction
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <textarea class="form-control" id="extractText" rows="4" placeholder="Enter medical text to extract procedures..."></textarea>
+                                    </div>
+                                    <button class="btn btn-gradient btn-sm" onclick="testMedicalExtract()">
+                                        <i class="fas fa-play"></i> Extract
+                                    </button>
+                                    <div id="extractResults" class="mt-3" style="display: none;">
+                                        <div class="response-container">
+                                            <pre id="extractResponse" class="mb-0"></pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CPT Search -->
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-search"></i> CPT Code Search
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <input type="text" class="form-control" id="searchQuery" placeholder="Enter procedures to search...">
+                                    </div>
+                                    <div class="row mb-3">
+                                        <div class="col-6">
+                                            <input type="number" class="form-control" id="searchMaxResults" placeholder="Max Results" value="5">
+                                        </div>
+                                        <div class="col-6">
+                                            <input type="number" class="form-control" id="searchThreshold" placeholder="Threshold" value="0.6" step="0.1">
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-gradient btn-sm" onclick="testCPTSearch()">
+                                        <i class="fas fa-search"></i> Search
+                                    </button>
+                                    <div id="searchResults" class="mt-3" style="display: none;">
+                                        <div class="response-container">
+                                            <pre id="searchResponse" class="mb-0"></pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Team Management Section -->
+                <div id="team-management" class="content-section" style="display: none;">
+                    <h2 class="mb-4">
+                        <i class="fas fa-cogs"></i> Team Management
+                    </h2>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        Team management features require Internal tier API key.
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-plus"></i> Create Team
+                                </div>
+                                <div class="card-body">
+                                    <form id="createTeamForm">
+                                        <div class="mb-3">
+                                            <label for="teamName" class="form-label">Team Name:</label>
+                                            <input type="text" class="form-control" id="teamName" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="teamTier" class="form-label">Team Tier:</label>
+                                            <select class="form-control" id="teamTier">
+                                                <option value="basic">Basic</option>
+                                                <option value="premium">Premium</option>
+                                                <option value="enterprise">Enterprise</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="teamEmail" class="form-label">Contact Email:</label>
+                                            <input type="email" class="form-control" id="teamEmail">
+                                        </div>
+                                        <button type="button" class="btn btn-gradient" onclick="createTeam()">
+                                            <i class="fas fa-plus"></i> Create Team
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-list"></i> All Teams
+                                </div>
+                                <div class="card-body">
+                                    <button class="btn btn-gradient btn-sm mb-3" onclick="listAllTeams()">
+                                        <i class="fas fa-sync"></i> Load Teams
+                                    </button>
+                                    <div id="teamsList">
+                                        <div class="text-muted">Click "Load Teams" to view all teams</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Section -->
+                <div id="analytics" class="content-section" style="display: none;">
+                    <h2 class="mb-4">
+                        <i class="fas fa-chart-bar"></i> Usage Analytics
+                    </h2>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-user"></i> My Usage Stats
+                                </div>
+                                <div class="card-body">
+                                    <button class="btn btn-gradient btn-sm mb-3" onclick="getMyUsageStats()">
+                                        <i class="fas fa-sync"></i> Load My Stats
+                                    </button>
+                                    <div id="myUsageStats">
+                                        <div class="text-muted">Click to load your usage statistics</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-users"></i> Team Usage Stats
+                                </div>
+                                <div class="card-body">
+                                    <button class="btn btn-gradient btn-sm mb-3" onclick="getTeamUsageStats()" id="teamStatsBtn" disabled>
+                                        <i class="fas fa-sync"></i> Load Team Stats
+                                    </button>
+                                    <div id="teamUsageStats">
+                                        <div class="text-muted">Validate API key first to load team statistics</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-body text-center p-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-2">Processing...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let currentApiKey = '';
+        let currentTeamInfo = null;
+        let apiBaseUrl = window.location.origin;
+
+        // Sample medical notes
+        const sampleNotes = {
+            knee: `Patient: Sarah Johnson
+Date: 2024-01-20
+
+PROCEDURE: Arthroscopic meniscectomy, left knee
+
+INDICATION: 32-year-old female athlete with MRI-confirmed medial meniscus tear causing mechanical symptoms and pain.
+
+TECHNIQUE: Under spinal anesthesia, diagnostic arthroscopy revealed a bucket-handle tear of the medial meniscus. Arthroscopic partial meniscectomy was performed using meniscal shavers and basket forceps. Joint was irrigated and all loose fragments removed.
+
+FINDINGS: Medial meniscus bucket-handle tear, otherwise normal joint.
+
+PLAN: Weight bearing as tolerated, physical therapy in 1 week, follow-up in 2 weeks.`,
+            
+            cardiology: `Patient: Robert Chen
+Date: 2024-01-18
+
+CONSULTATION: Cardiology consultation for chest pain evaluation
+
+HISTORY: 58-year-old male with 2-week history of exertional chest pain. Past medical history significant for hypertension and diabetes.
+
+EXAMINATION: Vital signs stable. Heart rate 78, blood pressure 142/88. Cardiac exam reveals regular rhythm, no murmurs. No peripheral edema.
+
+ASSESSMENT: Chest pain, likely cardiac origin. Will need stress testing.
+
+PLAN: 
+- EKG performed - normal sinus rhythm
+- Stress echocardiogram ordered
+- Continue current medications
+- Follow-up in 1 week with results`,
+
+            emergency: `Patient: Maria Rodriguez
+Date: 2024-01-22
+
+CHIEF COMPLAINT: Right ankle pain and swelling after fall
+
+HISTORY: 28-year-old female presents after fall down stairs 2 hours ago. Unable to bear weight on right ankle.
+
+PHYSICAL EXAM: Right ankle with obvious deformity, swelling, and tenderness over lateral malleolus. Neurovascularly intact.
+
+IMAGING: X-ray right ankle shows displaced lateral malleolus fracture.
+
+ASSESSMENT & PLAN:
+- Displaced lateral malleolus fracture
+- Orthopedic consultation obtained
+- Pain management with medications
+- NPO for possible surgery
+- Discharge planning pending orthopedic evaluation`
+        };
+
+        // Utility functions
+        function showSection(sectionId) {
+            // Hide all sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            // Show selected section
+            document.getElementById(sectionId).style.display = 'block';
+            
+            // Update navigation
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.querySelector(`[href="#${sectionId}"]`).classList.add('active');
+        }
+
+        function toggleApiKeyVisibility() {
+            const keyInput = document.getElementById('apiKey');
+            const eyeIcon = document.getElementById('eyeIcon');
+            
+            if (keyInput.type === 'password') {
+                keyInput.type = 'text';
+                eyeIcon.className = 'fas fa-eye-slash';
+            } else {
+                keyInput.type = 'password';
+                eyeIcon.className = 'fas fa-eye';
+            }
+        }
+
+        function showLoading() {
+            const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+            modal.show();
+        }
+
+        function hideLoading() {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('loadingModal'));
+            if (modal) modal.hide();
+        }
+
+        function displayError(message) {
+            alert('Error: ' + message);
+        }
+
+        function displaySuccess(message) {
+            // You could implement a toast notification here
+            console.log('Success:', message);
+        }
+
+        // API functions
+        async function makeApiRequest(endpoint, options = {}) {
+            const url = `${apiBaseUrl}${endpoint}`;
+            const headers = {
+                'Content-Type': 'application/json',
+                ...options.headers
+            };
+
+            if (currentApiKey) {
+                headers['Authorization'] = `Bearer ${currentApiKey}`;
+            }
+
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    headers
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || `HTTP ${response.status}`);
+                }
+                
+                return data;
+            } catch (error) {
+                console.error('API Request failed:', error);
+                throw error;
+            }
+        }
+
+        async function validateApiKey() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            if (!apiKey) {
+                displayError('Please enter an API key');
+                return;
+            }
+
+            currentApiKey = apiKey;
+            showLoading();
+
+            try {
+                // Try to get usage stats to validate the key
+                const stats = await makeApiRequest('/api/v1/usage');
+                
+                // If successful, the key is valid
+                document.getElementById('teamInfoCard').style.display = 'block';
+                
+                // Get team info by making another call
+                await getApiInfo();
+                
+                // Enable team-specific buttons
+                document.getElementById('teamStatsBtn').disabled = false;
+                document.getElementById('downloadKeysBtn').disabled = false;
+                
+                displaySuccess('API key validated successfully!');
+                
+            } catch (error) {
+                displayError(`API key validation failed: ${error.message}`);
+                currentApiKey = '';
+                document.getElementById('teamInfoCard').style.display = 'none';
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function checkSystemHealth() {
+            showLoading();
+            try {
+                const health = await makeApiRequest('/health');
+                
+                let healthHtml = `
+                    <div class="mb-2">
+                        <span class="status-indicator ${health.gateway_status === 'healthy' ? 'status-healthy' : 'status-unhealthy'}"></span>
+                        Gateway: <strong>${health.gateway_status}</strong>
+                    </div>
+                    <div class="mb-2">
+                        Services: <strong>${health.healthy_services}/${health.total_services}</strong> healthy
+                    </div>
+                    <small class="text-muted">Last checked: ${new Date(health.timestamp).toLocaleString()}</small>
+                `;
+                
+                document.getElementById('systemHealth').innerHTML = healthHtml;
+                
+            } catch (error) {
+                document.getElementById('systemHealth').innerHTML = `
+                    <div class="text-danger">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Health check failed: ${error.message}
+                    </div>
+                `;
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function getApiInfo() {
+            try {
+                const info = await makeApiRequest('/');
+                
+                let infoHtml = `
+                    <div class="mb-2"><strong>Service:</strong> ${info.service}</div>
+                    <div class="mb-2"><strong>Version:</strong> ${info.version || 'N/A'}</div>
+                    <div class="mb-2"><strong>Architecture:</strong> ${info.architecture || 'API Gateway + Monolith'}</div>
+                `;
+                
+                if (info.features) {
+                    infoHtml += `<div class="mb-2"><strong>Features:</strong> ${info.features.join(', ')}</div>`;
+                }
+                
+                document.getElementById('apiInfo').innerHTML = infoHtml;
+                
+                // Update team info if we have a valid API key
+                if (currentApiKey) {
+                    // This is a placeholder - in a real app, you'd get team info from a dedicated endpoint
+                    document.getElementById('teamInfo').innerHTML = `
+                        <div class="mb-2">
+                            <span class="badge team-badge bg-success">Active Key</span>
+                        </div>
+                        <div class="text-sm">Team information loaded</div>
+                    `;
+                }
+                
+            } catch (error) {
+                document.getElementById('apiInfo').innerHTML = `
+                    <div class="text-danger">Failed to load API info: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function processCompleteWorkflow() {
+            const medicalNote = document.getElementById('medicalNote').value.trim();
+            if (!medicalNote) {
+                displayError('Please enter a medical note');
+                return;
+            }
+
+            if (!currentApiKey) {
+                displayError('Please validate your API key first');
+                return;
+            }
+
+            const maxResults = parseInt(document.getElementById('maxResults').value) || 10;
+            const includeComprehensive = document.getElementById('includeComprehensive').checked;
+
+            const processBtn = document.getElementById('processBtn');
+            processBtn.disabled = true;
+            processBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+            try {
+                const result = await makeApiRequest('/api/v1/process', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        text: medicalNote,
+                        max_results: maxResults,
+                        include_comprehensive: includeComprehensive
+                    })
+                });
+
+                document.getElementById('workflowResults').style.display = 'block';
+                document.getElementById('workflowResponse').textContent = JSON.stringify(result, null, 2);
+                
+            } catch (error) {
+                displayError(`Workflow processing failed: ${error.message}`);
+            } finally {
+                processBtn.disabled = false;
+                processBtn.innerHTML = '<i class="fas fa-cogs"></i> Process Medical Note';
+            }
+        }
+
+        async function testMedicalExtract() {
+            const text = document.getElementById('extractText').value.trim();
+            if (!text) {
+                displayError('Please enter medical text to extract');
+                return;
+            }
+
+            if (!currentApiKey) {
+                displayError('Please validate your API key first');
+                return;
+            }
+
+            try {
+                const result = await makeApiRequest('/api/v1/medical/extract', {
+                    method: 'POST',
+                    body: JSON.stringify({ text })
+                });
+
+                document.getElementById('extractResults').style.display = 'block';
+                document.getElementById('extractResponse').textContent = JSON.stringify(result, null, 2);
+                
+            } catch (error) {
+                displayError(`Medical extraction failed: ${error.message}`);
+            }
+        }
+
+        async function testCPTSearch() {
+            const query = document.getElementById('searchQuery').value.trim();
+            if (!query) {
+                displayError('Please enter a search query');
+                return;
+            }
+
+            if (!currentApiKey) {
+                displayError('Please validate your API key first');
+                return;
+            }
+
+            const maxResults = parseInt(document.getElementById('searchMaxResults').value) || 5;
+            const threshold = parseFloat(document.getElementById('searchThreshold').value) || 0.6;
+
+            try {
+                const result = await makeApiRequest('/api/v1/cpt/search', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        procedures: query,
+                        max_results: maxResults,
+                        similarity_threshold: threshold
+                    })
+                });
+
+                document.getElementById('searchResults').style.display = 'block';
+                document.getElementById('searchResponse').textContent = JSON.stringify(result, null, 2);
+                
+            } catch (error) {
+                displayError(`CPT search failed: ${error.message}`);
+            }
+        }
+
+        async function createTeam() {
+            if (!currentApiKey) {
+                displayError('Please validate your API key first');
+                return;
+            }
+
+            const teamName = document.getElementById('teamName').value.trim();
+            const teamTier = document.getElementById('teamTier').value;
+            const teamEmail = document.getElementById('teamEmail').value.trim();
+
+            if (!teamName) {
+                displayError('Please enter a team name');
+                return;
+            }
+
+            try {
+                const result = await makeApiRequest('/api/v1/admin/teams', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        team_name: teamName,
+                        tier: teamTier,
+                        contact_email: teamEmail || null
+                    })
+                });
+
+                displaySuccess(`Team "${teamName}" created successfully!`);
+                document.getElementById('createTeamForm').reset();
+                
+            } catch (error) {
+                displayError(`Failed to create team: ${error.message}`);
+            }
+        }
+
+        async function listAllTeams() {
+            if (!currentApiKey) {
+                displayError('Please validate your API key first');
+                return;
+            }
+
+            try {
+                const teams = await makeApiRequest('/api/v1/admin/teams');
+                
+                let teamsHtml = '';
+                if (teams && teams.length > 0) {
+                    teams.forEach(team => {
+                        teamsHtml += `
+                            <div class="card mb-2">
+                                <div class="card-body p-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>${team.team_name}</strong>
+                                            <span class="badge bg-secondary ms-2">${team.tier}</span>
+                                        </div>
+                                        <small class="text-muted">${team.team_id.substring(0, 8)}...</small>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    teamsHtml = '<div class="text-muted">No teams found</div>';
+                }
+                
+                document.getElementById('teamsList').innerHTML = teamsHtml;
+                
+            } catch (error) {
+                document.getElementById('teamsList').innerHTML = `
+                    <div class="text-danger">Failed to load teams: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function getMyUsageStats() {
+            if (!currentApiKey) {
+                displayError('Please validate your API key first');
+                return;
+            }
+
+            try {
+                const stats = await makeApiRequest('/api/v1/usage');
+                
+                let statsHtml = `
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="fw-bold">${stats.total_requests}</div>
+                            <small class="text-muted">Total Requests</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="fw-bold">${stats.requests_this_hour}</div>
+                            <small class="text-muted">This Hour</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="fw-bold">${stats.successful_requests}</div>
+                            <small class="text-muted">Successful</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="fw-bold">${Math.round(stats.average_response_time_ms)}ms</div>
+                            <small class="text-muted">Avg Response</small>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('myUsageStats').innerHTML = statsHtml;
+                
+            } catch (error) {
+                document.getElementById('myUsageStats').innerHTML = `
+                    <div class="text-danger">Failed to load stats: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function getTeamUsageStats() {
+            if (!currentApiKey || !currentTeamInfo) {
+                displayError('Please validate your API key first');
+                return;
+            }
+
+            try {
+                // This would need the team ID - for now we'll show a placeholder
+                document.getElementById('teamUsageStats').innerHTML = `
+                    <div class="text-info">
+                        <i class="fas fa-info-circle"></i>
+                        Team usage stats require team ID. This feature will be available after API key validation improvements.
+                    </div>
+                `;
+                
+            } catch (error) {
+                document.getElementById('teamUsageStats').innerHTML = `
+                    <div class="text-danger">Failed to load team stats: ${error.message}</div>
+                `;
+            }
+        }
+
+        function loadSampleNote(noteType) {
+            if (sampleNotes[noteType]) {
+                document.getElementById('medicalNote').value = sampleNotes[noteType];
+            }
+        }
+
+        function setupDemoTeams() {
+            alert('Demo team setup would create sample teams and API keys. This requires admin access and would be implemented server-side.');
+        }
+
+        function downloadApiKeys() {
+            alert('API key download functionality would be implemented based on your team management needs.');
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load initial system information
+            getApiInfo();
+            checkSystemHealth();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+# Railway ignore file - exclude unnecessary files from deployment
+
+# Cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+
+# Database files (will be recreated)
+*.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation (optional)
+*.md
+!README_RAILWAY.md
+
+# Test files
+test_*.py
+*_test.py
+tests/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Log files
+*.log
+logs/
+
+# Development files
+dev/
+development/

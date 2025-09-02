@@ -1,0 +1,15 @@
+[build]
+builder = "dockerfile"
+
+[deploy]
+healthcheckPath = "/api/status"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+
+[env]
+PORT = "8080"
+PYTHONPATH = "/app"
+DATABASE_PATH = "/app/api_keys.db"
+
+[service]
+name = "vectorized-cpt-web"

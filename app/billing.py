@@ -99,7 +99,7 @@ class Billing:
             processing_time = int((time.time() - start_time) * 1000)
             pipeline_response["processing_time_ms"] = processing_time
             
-            print(f"✅ Processing complete: {len(results)} results in {processing_time}ms")
+            print(f"✅ Processing complete: {len(primary_results)} results in {processing_time}ms")
             return pipeline_response
             
         except Exception as e:

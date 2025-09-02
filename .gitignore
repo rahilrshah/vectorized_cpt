@@ -71,3 +71,60 @@ node_modules/
 # Google Cloud service account credentials
 *-firebase-adminsdk-*.json
 cpt-code-vectorized-dataset-82aa5cd8ab19.json
+
+# Python specific additions
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# Python environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE files
+.vscode/settings.json
+.idea/
+*.iml
+
+# Project-specific ignores
+# Prevent accidental re-addition of removed architecture
+api_services/
+functions/
+microservices_demo.html
+firebase.json
+firestore.indexes.json
+
+# Test and debug files (prevent accidental commits)
+test_*.py
+debug_*.py
+*_test.py
+*_debug.py
+simple_*.py
+temporary_*.py
+# Exception: Keep our official demo and test files
+!demo_team_api.py
+!test_team_system.py
+
+# Data files
+*.db
+*.jsonl
+*.csv
+# Exception: Keep required files
+!requirements.txt
+!CPT_Codes_Raw.csv
+
+# Temporary and backup files
+*.tmp
+*.temp
+*.bak
+*.old

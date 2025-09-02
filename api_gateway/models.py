@@ -17,6 +17,14 @@ class APIKeyStatus(str, Enum):
     expired = "expired"
 
 
+class TeamTier(str, Enum):
+    """Team tier enumeration for access levels"""
+    basic = "basic"
+    premium = "premium"
+    enterprise = "enterprise"
+    internal = "internal"
+
+
 class ServiceName(str, Enum):
     """Available microservice names"""
     medical_processor = "medical_processor"
@@ -24,15 +32,30 @@ class ServiceName(str, Enum):
     medical_coding = "medical_coding"
 
 
+class TeamInfo(BaseModel):
+    """Team information"""
+    team_id: str = Field(..., description="Team identifier")
+    team_name: str = Field(..., description="Team display name")
+    tier: TeamTier = Field(..., description="Team access tier")
+    enabled_features: List[str] = Field(default_factory=list, description="Enabled feature flags")
+    max_results_limit: int = Field(50, description="Maximum results per request")
+    rate_limit_multiplier: float = Field(1.0, description="Rate limit multiplier")
+    created_at: datetime = Field(..., description="Team creation timestamp")
+    contact_email: Optional[str] = Field(None, description="Team contact email")
+
+
 class APIKeyInfo(BaseModel):
     """API Key information"""
     key_id: str = Field(..., description="API key identifier")
     user_id: str = Field(..., description="User identifier")
+    team_id: str = Field(..., description="Team identifier")
     status: APIKeyStatus = Field(..., description="Key status")
     rate_limit_per_hour: int = Field(..., description="Hourly rate limit")
     created_at: datetime = Field(..., description="Creation timestamp")
     expires_at: Optional[datetime] = Field(None, description="Expiration timestamp")
     last_used_at: Optional[datetime] = Field(None, description="Last usage timestamp")
+    # Team information (populated during validation)
+    team_info: Optional[TeamInfo] = Field(None, description="Associated team information")
 
 
 class UsageStats(BaseModel):
@@ -113,3 +136,52 @@ class ErrorResponse(BaseModel):
     details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
     request_id: str = Field(..., description="Request identifier")
     timestamp: datetime = Field(..., description="Error timestamp")
+
+
+class CreateTeamRequest(BaseModel):
+    """Request to create a new team"""
+    team_name: str = Field(..., description="Team display name", min_length=1)
+    tier: TeamTier = Field(..., description="Team access tier")
+    contact_email: Optional[str] = Field(None, description="Team contact email")
+    enabled_features: Optional[List[str]] = Field(default_factory=list, description="Initial feature flags")
+    max_results_limit: Optional[int] = Field(50, description="Maximum results per request")
+    rate_limit_multiplier: Optional[float] = Field(1.0, description="Rate limit multiplier")
+
+
+class CreateAPIKeyRequest(BaseModel):
+    """Request to create a new API key"""
+    team_id: str = Field(..., description="Team identifier")
+    user_id: str = Field(..., description="User identifier")
+    rate_limit_per_hour: Optional[int] = Field(1000, description="Hourly rate limit")
+    expires_days: Optional[int] = Field(None, description="Expiration in days")
+
+
+class CreateAPIKeyResponse(BaseModel):
+    """Response for API key creation"""
+    api_key: str = Field(..., description="Generated API key (only shown once)")
+    key_id: str = Field(..., description="API key identifier")
+    team_id: str = Field(..., description="Team identifier")
+    user_id: str = Field(..., description="User identifier")
+    rate_limit_per_hour: int = Field(..., description="Hourly rate limit")
+    expires_at: Optional[datetime] = Field(None, description="Expiration timestamp")
+
+
+class TeamUsageStats(BaseModel):
+    """Team-level usage statistics"""
+    team_id: str = Field(..., description="Team identifier")
+    team_name: str = Field(..., description="Team display name")
+    total_requests: int = Field(..., description="Total requests by team")
+    successful_requests: int = Field(..., description="Successful requests")
+    failed_requests: int = Field(..., description="Failed requests")
+    requests_this_hour: int = Field(..., description="Requests in current hour")
+    average_response_time_ms: float = Field(..., description="Average response time")
+    active_api_keys: int = Field(..., description="Number of active API keys")
+    most_used_endpoints: List[Dict[str, Any]] = Field(default_factory=list, description="Most used endpoints")
+
+
+class FeatureFlag(BaseModel):
+    """Feature flag definition"""
+    flag_name: str = Field(..., description="Feature flag name")
+    description: str = Field(..., description="Feature description")
+    default_enabled: bool = Field(False, description="Default enabled state")
+    required_tier: Optional[TeamTier] = Field(None, description="Minimum required tier")
