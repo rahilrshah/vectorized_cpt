@@ -1,0 +1,123 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cpt-vector-service-ingress
+  namespace: sarthi-backend
+  labels:
+    app: cpt-vector-service
+    component: ingress
+  annotations:
+    # NGINX Ingress Controller
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    
+    # Rate limiting
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    
+    # CORS
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://app.sarthi.healthcare"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization, X-Tenant-Id, X-Correlation-Id"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options "DENY" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    
+    # Load balancing
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$http_x_tenant_id"
+    nginx.ingress.kubernetes.io/load-balance: "round_robin"
+    
+    # Timeouts
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    
+    # Body size
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    
+    # Health checks
+    nginx.ingress.kubernetes.io/health-check-path: "/health"
+    nginx.ingress.kubernetes.io/health-check-interval: "30"
+    
+    # Certificate management
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/acme-challenge-type: "http01"
+    
+    # Monitoring
+    nginx.ingress.kubernetes.io/enable-access-log: "true"
+    nginx.ingress.kubernetes.io/access-log-params: |
+      buffer=16k flush=5s
+spec:
+  tls:
+  - hosts:
+    - api.sarthi.healthcare
+    secretName: cpt-vector-service-tls
+  rules:
+  - host: api.sarthi.healthcare
+    http:
+      paths:
+      - path: /api/v1/cpt-search
+        pathType: Prefix
+        backend:
+          service:
+            name: cpt-vector-service
+            port:
+              number: 80
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: cpt-vector-service
+            port:
+              number: 80
+      - path: /ready
+        pathType: Exact
+        backend:
+          service:
+            name: cpt-vector-service
+            port:
+              number: 80
+      - path: /api/docs
+        pathType: Prefix
+        backend:
+          service:
+            name: cpt-vector-service
+            port:
+              number: 80
+
+---
+# Internal ingress for metrics (monitoring namespace access only)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cpt-vector-service-metrics
+  namespace: sarthi-backend
+  labels:
+    app: cpt-vector-service
+    component: metrics-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    nginx.ingress.kubernetes.io/auth-type: "basic"
+    nginx.ingress.kubernetes.io/auth-secret: "monitoring-auth"
+    nginx.ingress.kubernetes.io/auth-realm: "Sarthi Monitoring"
+spec:
+  rules:
+  - host: metrics.internal.sarthi.healthcare
+    http:
+      paths:
+      - path: /metrics
+        pathType: Exact
+        backend:
+          service:
+            name: cpt-vector-service
+            port:
+              number: 9090

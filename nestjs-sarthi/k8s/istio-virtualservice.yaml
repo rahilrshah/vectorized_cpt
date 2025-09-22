@@ -1,0 +1,153 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: sarthi-cpt-vector-vs
+  namespace: sarthi-backend
+  labels:
+    app: sarthi-cpt-vector-service
+    app.kubernetes.io/name: sarthi-cpt-vector-service
+    app.kubernetes.io/part-of: sarthi-healthcare-platform
+    sarthi.io/business-domain: healthcare-coding
+    sarthi.io/service-type: microservice
+  annotations:
+    sarthi.io/routing-strategy: "capability-based"
+    sarthi.io/load-balancing: "round-robin"
+spec:
+  hosts:
+  - api.sarthi.healthcare
+  - api-staging.sarthi.healthcare
+  - sarthi-cpt-vector-service.sarthi-backend.svc.cluster.local
+  gateways:
+  - sarthi-healthcare-gateway
+  - mesh
+  http:
+  # CPT Search endpoints
+  - match:
+    - uri:
+        prefix: /sarthi/api/v1/cpt-search
+    headers:
+      x-tenant-id:
+        regex: "^[a-zA-Z0-9-_]+$"
+    route:
+    - destination:
+        host: sarthi-cpt-vector-service.sarthi-backend.svc.cluster.local
+        port:
+          number: 8080
+        subset: stable
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+      retryOn: 5xx,reset,connect-failure,refused-stream
+    headers:
+      request:
+        add:
+          x-service-name: sarthi-cpt-vector-service
+          x-service-version: v1.0.0
+          x-routing-strategy: capability-based
+      response:
+        add:
+          x-processed-by: sarthi-cpt-vector-service
+          x-compliance: hipaa-high
+
+  # Health check endpoints (high priority)
+  - match:
+    - uri:
+        exact: /health
+    - uri:
+        exact: /ready
+    route:
+    - destination:
+        host: sarthi-cpt-vector-service.sarthi-backend.svc.cluster.local
+        port:
+          number: 8080
+    timeout: 5s
+
+  # Metrics endpoint (monitoring access only)
+  - match:
+    - uri:
+        exact: /metrics
+    headers:
+      authorization:
+        regex: ".*monitoring.*"
+    route:
+    - destination:
+        host: sarthi-cpt-vector-service.sarthi-backend.svc.cluster.local
+        port:
+          number: 9090
+
+  # API documentation
+  - match:
+    - uri:
+        prefix: /sarthi/api/docs
+    route:
+    - destination:
+        host: sarthi-cpt-vector-service.sarthi-backend.svc.cluster.local
+        port:
+          number: 8080
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: sarthi-cpt-vector-dr
+  namespace: sarthi-backend
+  labels:
+    app: sarthi-cpt-vector-service
+    app.kubernetes.io/name: sarthi-cpt-vector-service
+    app.kubernetes.io/part-of: sarthi-healthcare-platform
+    sarthi.io/business-domain: healthcare-coding
+  annotations:
+    sarthi.io/circuit-breaker: "enabled"
+    sarthi.io/load-balancing: "least-request"
+spec:
+  host: sarthi-cpt-vector-service.sarthi-backend.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 10s
+        tcpKeepalive:
+          time: 7200s
+          interval: 75s
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 2
+        maxRetries: 3
+        consecutiveGatewayErrors: 5
+        interval: 30s
+        baseEjectionTime: 30s
+        maxEjectionPercent: 50
+        minHealthPercent: 30
+    loadBalancer:
+      simple: LEAST_REQUEST
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+      splitExternalLocalOriginErrors: true
+  subsets:
+  - name: stable
+    labels:
+      version: v1.0.0
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 100
+        http:
+          http1MaxPendingRequests: 50
+          maxRequestsPerConnection: 2
+  - name: canary
+    labels:
+      version: v1.0.1
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 25
+          maxRequestsPerConnection: 1

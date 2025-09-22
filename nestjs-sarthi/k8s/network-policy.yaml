@@ -1,0 +1,114 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cpt-vector-service-network-policy
+  namespace: sarthi-backend
+  labels:
+    app: cpt-vector-service
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      app: cpt-vector-service
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow traffic from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # Allow traffic from API Gateway
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: sarthi-gateway
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # Allow metrics scraping from monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  
+  # Allow inter-pod communication (for load balancing)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: cpt-vector-service
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  egress:
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  
+  # Allow HTTPS outbound (for Google Cloud APIs)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  
+  # Allow PostgreSQL connection
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: sarthi-db
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow Redis connection
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: sarthi-cache
+    ports:
+    - protocol: TCP
+      port: 6379
+  
+  # Allow Firestore connection (Google Cloud)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+# Additional security policy for PHI protection
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cpt-vector-service-phi-protection
+  namespace: sarthi-backend
+  labels:
+    app: cpt-vector-service
+    component: security
+    compliance: hipaa
+spec:
+  podSelector:
+    matchLabels:
+      app: cpt-vector-service
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Deny all traffic by default except explicitly allowed
+  ingress: []
+  egress: []

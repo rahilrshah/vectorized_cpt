@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cpt-vector-service
+  namespace: sarthi-backend
+  labels:
+    app: cpt-vector-service
+    component: api
+    version: v1.0.0
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+    cloud.google.com/neg: '{"ingress": true}'
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app: cpt-vector-service
+    component: api
+  sessionAffinity: None
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cpt-vector-service-headless
+  namespace: sarthi-backend
+  labels:
+    app: cpt-vector-service
+    component: api
+    version: v1.0.0
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+    protocol: TCP
+  selector:
+    app: cpt-vector-service
+    component: api
+  publishNotReadyAddresses: true

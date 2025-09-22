@@ -1,0 +1,382 @@
+name: CPT Vector Service CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'nestjs-sarthi/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'nestjs-sarthi/**'
+  release:
+    types: [ published ]
+
+env:
+  PROJECT_ID: sarthi-healthcare-prod
+  GKE_CLUSTER: sarthi-prod-cluster
+  GKE_ZONE: us-central1-a
+  SERVICE_NAME: cpt-vector-service
+  IMAGE_NAME: cpt-vector-service
+  REGISTRY: gcr.io
+
+jobs:
+  # Security and code quality checks
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nestjs-sarthi
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: nestjs-sarthi/package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run security audit
+      run: npm audit --audit-level high
+
+    - name: Run CodeQL Analysis
+      uses: github/codeql-action/init@v3
+      with:
+        languages: typescript
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: 'nestjs-sarthi'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Lint and test
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nestjs-sarthi
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: nestjs-sarthi/package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run ESLint
+      run: npm run lint
+
+    - name: Run type checking
+      run: npm run typecheck
+
+    - name: Run unit tests
+      run: npm run test:cov
+      env:
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USERNAME: postgres
+        DB_PASSWORD: test_password
+        DB_NAME: test_db
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+        NODE_ENV: test
+
+    - name: Run integration tests
+      run: npm run test:e2e
+      env:
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USERNAME: postgres
+        DB_PASSWORD: test_password
+        DB_NAME: test_db
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+        NODE_ENV: test
+
+    - name: Upload test coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: nestjs-sarthi/coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+
+  # Build and scan Docker image
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [security-scan, test]
+    defaults:
+      run:
+        working-directory: nestjs-sarthi
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Google Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: _json_key
+        password: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=semver,pattern={{version}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: nestjs-sarthi
+        file: nestjs-sarthi/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64
+        build-args: |
+          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          VCS_REF=${{ github.sha }}
+          VERSION=${{ steps.meta.outputs.version }}
+
+    - name: Run Trivy vulnerability scanner on image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'image-trivy-results.sarif'
+
+    - name: Upload image scan results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'image-trivy-results.sarif'
+
+  # Deploy to staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://api-staging.sarthi.healthcare
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.PROJECT_ID }}
+
+    - name: Configure kubectl
+      run: |
+        gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} --zone ${{ env.GKE_ZONE }}
+
+    - name: Deploy to staging
+      run: |
+        cd nestjs-sarthi/k8s
+        
+        # Update image tag
+        sed -i "s|gcr.io/sarthi-healthcare-prod/cpt-vector-service:.*|${{ needs.build.outputs.image-tag }}|g" deployment.yaml
+        
+        # Apply staging configurations
+        kubectl apply -f namespace.yaml
+        kubectl apply -f configmap.yaml
+        kubectl apply -f secret.yaml
+        kubectl apply -f rbac.yaml
+        kubectl apply -f deployment.yaml
+        kubectl apply -f service.yaml
+        kubectl apply -f hpa.yaml
+        kubectl apply -f network-policy.yaml
+        
+        # Wait for rollout
+        kubectl rollout status deployment/cpt-vector-service -n sarthi-backend --timeout=600s
+
+    - name: Run health checks
+      run: |
+        # Wait for pods to be ready
+        kubectl wait --for=condition=ready pod -l app=cpt-vector-service -n sarthi-backend --timeout=300s
+        
+        # Test health endpoints
+        kubectl port-forward service/cpt-vector-service 8080:80 -n sarthi-backend &
+        sleep 10
+        
+        curl -f http://localhost:8080/health || exit 1
+        curl -f http://localhost:8080/ready || exit 1
+
+  # Deploy to production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
+    environment:
+      name: production
+      url: https://api.sarthi.healthcare
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.PROJECT_ID }}
+
+    - name: Configure kubectl
+      run: |
+        gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} --zone ${{ env.GKE_ZONE }}
+
+    - name: Deploy to production
+      run: |
+        cd nestjs-sarthi/k8s
+        
+        # Update image tag
+        sed -i "s|gcr.io/sarthi-healthcare-prod/cpt-vector-service:.*|${{ needs.build.outputs.image-tag }}|g" deployment.yaml
+        
+        # Apply production configurations
+        kubectl apply -f namespace.yaml
+        kubectl apply -f configmap.yaml
+        kubectl apply -f secret.yaml
+        kubectl apply -f rbac.yaml
+        kubectl apply -f deployment.yaml
+        kubectl apply -f service.yaml
+        kubectl apply -f hpa.yaml
+        kubectl apply -f ingress.yaml
+        kubectl apply -f network-policy.yaml
+        
+        # Rolling update with careful monitoring
+        kubectl rollout status deployment/cpt-vector-service -n sarthi-backend --timeout=600s
+
+    - name: Run production health checks
+      run: |
+        # Wait for pods to be ready
+        kubectl wait --for=condition=ready pod -l app=cpt-vector-service -n sarthi-backend --timeout=300s
+        
+        # Test external endpoints
+        sleep 30
+        curl -f https://api.sarthi.healthcare/health || exit 1
+        curl -f https://api.sarthi.healthcare/ready || exit 1
+
+    - name: Run smoke tests
+      run: |
+        cd nestjs-sarthi
+        npm ci
+        npm run test:smoke
+      env:
+        API_BASE_URL: https://api.sarthi.healthcare
+        TEST_TENANT_ID: ${{ secrets.TEST_TENANT_ID }}
+        TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+
+    - name: Notify deployment
+      if: always()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        text: |
+          CPT Vector Service deployment to production: ${{ job.status }}
+          Image: ${{ needs.build.outputs.image-tag }}
+          Commit: ${{ github.sha }}
+          Author: ${{ github.actor }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Performance and load testing
+  performance-test:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.ref == 'refs/heads/develop'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run load tests
+      run: |
+        cd nestjs-sarthi
+        npm ci
+        npm run test:load
+      env:
+        API_BASE_URL: https://api-staging.sarthi.healthcare
+        TEST_TENANT_ID: ${{ secrets.TEST_TENANT_ID }}
+        TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+
+    - name: Upload performance results
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-test-results
+        path: nestjs-sarthi/test-results/

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sarthi-backend
+  labels:
+    name: sarthi-backend
+    environment: production
+    team: sarthi-platform
+    compliance: hipaa
+  annotations:
+    description: "Sarthi Healthcare Platform Backend Services"
+    compliance.sarthi.io/hipaa: "required"
+    security.sarthi.io/network-policy: "enabled"
+    monitoring.sarthi.io/enabled: "true"

@@ -1,0 +1,304 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sarthi-cpt-vector-service
+  namespace: sarthi-backend
+  labels:
+    app: sarthi-cpt-vector-service
+    app.kubernetes.io/name: sarthi-cpt-vector-service
+    app.kubernetes.io/component: api
+    app.kubernetes.io/version: v1.0.0
+    app.kubernetes.io/part-of: sarthi-healthcare-platform
+    app.kubernetes.io/managed-by: sarthi-platform
+    sarthi.io/business-domain: healthcare-coding
+    sarthi.io/service-type: microservice
+    sarthi.io/data-classification: phi-sensitive
+    component: api
+    version: v1.0.0
+    tier: backend
+    team: sarthi-platform
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+    sarthi.io/compliance: "hipaa-high"
+    sarthi.io/monitoring: "enabled"
+    sarthi.io/service-mesh: "istio"
+    sarthi.io/bias-detection: "enabled"
+    sarthi.io/explainable-ai: "enabled"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: sarthi-cpt-vector-service
+      component: api
+  template:
+    metadata:
+      labels:
+        app: sarthi-cpt-vector-service
+        app.kubernetes.io/name: sarthi-cpt-vector-service
+        app.kubernetes.io/component: api
+        app.kubernetes.io/version: v1.0.0
+        app.kubernetes.io/part-of: sarthi-healthcare-platform
+        sarthi.io/business-domain: healthcare-coding
+        sarthi.io/service-type: microservice
+        component: api
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        sidecar.istio.io/inject: "true"
+        sarthi.io/version: "v1.0.0"
+        sarthi.io/deployment-time: "{{ .Values.deploymentTime | default now }}"
+    spec:
+      serviceAccountName: sarthi-cpt-vector-service
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: sarthi-cpt-vector-service
+        image: gcr.io/sarthi-healthcare-prod/cpt-vector-service:v1.0.0
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        env:
+        # Load configuration from ConfigMap
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: cpt-vector-service-config
+              key: NODE_ENV
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: cpt-vector-service-config
+              key: PORT
+        - name: GCP_PROJECT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: cpt-vector-service-config
+              key: GCP_PROJECT_ID
+        - name: GCP_LOCATION
+          valueFrom:
+            configMapKeyRef:
+              name: cpt-vector-service-config
+              key: GCP_LOCATION
+        
+        # Load secrets
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: cpt-vector-service-secrets
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: cpt-vector-service-secrets
+              key: DB_PORT
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: cpt-vector-service-secrets
+              key: DB_USERNAME
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cpt-vector-service-secrets
+              key: DB_PASSWORD
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cpt-vector-service-secrets
+              key: DB_NAME
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: cpt-vector-service-secrets
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            secretKeyRef:
+              name: cpt-vector-service-secrets
+              key: REDIS_PORT
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cpt-vector-service-secrets
+              key: REDIS_PASSWORD
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: cpt-vector-service-secrets
+              key: JWT_SECRET
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cpt-vector-service-secrets
+              key: ENCRYPTION_KEY
+        
+        # Sarthi platform configuration
+        - name: SARTHI_API_GATEWAY_URL
+          valueFrom:
+            configMapKeyRef:
+              name: sarthi-platform-config
+              key: API_GATEWAY_URL
+        - name: SARTHI_AUTH_SERVICE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: sarthi-platform-config
+              key: AUTH_SERVICE_URL
+        - name: SARTHI_PLATFORM_VERSION
+          value: "2.0"
+        - name: SARTHI_SERVICE_PREFIX
+          value: "sarthi"
+        - name: SARTHI_BUSINESS_DOMAIN
+          value: "healthcare-coding"
+        - name: SARTHI_COMPLIANCE_LEVEL
+          value: "hipaa-high"
+        - name: SARTHI_DATA_CLASSIFICATION
+          value: "phi-sensitive"
+        - name: SARTHI_BIAS_DETECTION_ENABLED
+          value: "true"
+        
+        # Additional config from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: cpt-vector-service-config
+        
+        # Resource limits and requests
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+            ephemeral-storage: "1Gi"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+            ephemeral-storage: "2Gi"
+        
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities:
+            drop:
+            - ALL
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 30
+          successThreshold: 1
+        
+        # Volume mounts for writable directories
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: app-cache
+          mountPath: /app/.cache
+        - name: gcp-service-account
+          mountPath: /etc/gcp
+          readOnly: true
+        
+        # Lifecycle hooks
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - "sleep 15"
+      
+      # Volumes
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: app-cache
+        emptyDir: {}
+      - name: gcp-service-account
+        secret:
+          secretName: gcp-service-account-key
+          optional: true
+      
+      # Scheduling preferences
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - cpt-vector-service
+              topologyKey: kubernetes.io/hostname
+      
+      # Node selection
+      nodeSelector:
+        kubernetes.io/os: linux
+        node.sarthi.io/tier: backend
+      
+      # Tolerations for dedicated nodes
+      tolerations:
+      - key: "sarthi.io/backend"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      
+      # Priority class for scheduling
+      priorityClassName: sarthi-backend-high
+      
+      # Termination grace period
+      terminationGracePeriodSeconds: 60
+      
+      # DNS configuration
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "2"
+        - name: edns0

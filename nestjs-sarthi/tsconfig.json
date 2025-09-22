@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2020",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": false,
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/config/*": ["./src/config/*"],
+      "@/common/*": ["./src/common/*"],
+      "@/cpt-search/*": ["./src/cpt-search/*"],
+      "@/vector-engine/*": ["./src/vector-engine/*"],
+      "@/security/*": ["./src/security/*"],
+      "@/audit/*": ["./src/audit/*"],
+      "@/monitoring/*": ["./src/monitoring/*"]
+    }
+  }
+}
